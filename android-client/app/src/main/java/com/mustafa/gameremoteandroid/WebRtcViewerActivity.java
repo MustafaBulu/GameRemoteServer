@@ -9,6 +9,9 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
 public class WebRtcViewerActivity extends AppCompatActivity {
 
@@ -20,6 +23,7 @@ public class WebRtcViewerActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE);
         setContentView(R.layout.activity_webrtc_viewer);
+        enableImmersiveMode();
 
         webView = findViewById(R.id.webView);
         String wsUrl = safe(getIntent().getStringExtra("ws_url"));
@@ -44,6 +48,34 @@ public class WebRtcViewerActivity extends AppCompatActivity {
         webView.setWebViewClient(new WebViewClient());
         webView.setWebChromeClient(new WebChromeClient());
         webView.loadUrl(viewerUrl);
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        enableImmersiveMode();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            enableImmersiveMode();
+        }
+    }
+
+    private void enableImmersiveMode() {
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().hide();
+        }
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller == null) return;
+        controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        );
+        controller.hide(WindowInsetsCompat.Type.systemBars());
     }
 
     private static String safe(String v) {

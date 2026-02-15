@@ -13,11 +13,58 @@ using System.Runtime.InteropServices;
 public class Win32 {
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int X, int Y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint dwFlags, uint dx, uint dy, int dwData, UIntPtr dwExtraInfo);
+  [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 }
 "@
 
 $ws = New-Object -ComObject WScript.Shell
 $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+
+function Get-Vk([string]$k) {
+  switch ($k) {
+    'up' { return 0x26 }
+    'down' { return 0x28 }
+    'left' { return 0x25 }
+    'right' { return 0x27 }
+    'enter' { return 0x0D }
+    'backspace' { return 0x08 }
+    'esc' { return 0x1B }
+    'tab' { return 0x09 }
+    'home' { return 0x24 }
+    'end' { return 0x23 }
+    'f1' { return 0x70 }
+    'f2' { return 0x71 }
+    'f3' { return 0x72 }
+    'f4' { return 0x73 }
+    'f5' { return 0x74 }
+    'f6' { return 0x75 }
+    'f7' { return 0x76 }
+    'f8' { return 0x77 }
+    'f9' { return 0x78 }
+    'f10' { return 0x79 }
+    'f11' { return 0x7A }
+    'f12' { return 0x7B }
+    'ctrl' { return 0x11 }
+    'shift' { return 0x10 }
+    'alt' { return 0x12 }
+    'space' { return 0x20 }
+    default { return -1 }
+  }
+}
+
+function Get-VkExtended([string]$k) {
+  $vk = Get-Vk($k)
+  if ($vk -ge 0) { return $vk }
+  if ([string]::IsNullOrWhiteSpace($k)) { return -1 }
+  if ($k.Length -eq 1) {
+    $ch = [char]$k.ToUpperInvariant()
+    $code = [int][char]$ch
+    if (($code -ge 0x41 -and $code -le 0x5A) -or ($code -ge 0x30 -and $code -le 0x39)) {
+      return $code
+    }
+  }
+  return -1
+}
 
 while (($line = [Console]::In.ReadLine()) -ne $null) {
   if ([string]::IsNullOrWhiteSpace($line)) { continue }
@@ -40,12 +87,27 @@ while (($line = [Console]::In.ReadLine()) -ne $null) {
     }
   } elseif ($parts[0] -eq 'K' -and $parts.Length -ge 2) {
     $k = $parts[1]
-    if ($k -eq 'up') { $ws.SendKeys('{UP}') }
-    elseif ($k -eq 'down') { $ws.SendKeys('{DOWN}') }
-    elseif ($k -eq 'left') { $ws.SendKeys('{LEFT}') }
-    elseif ($k -eq 'right') { $ws.SendKeys('{RIGHT}') }
-    elseif ($k -eq 'enter') { $ws.SendKeys('{ENTER}') }
-    elseif ($k -eq 'backspace') { $ws.SendKeys('{BACKSPACE}') }
+    $vk = Get-VkExtended($k)
+    if ($vk -ge 0) {
+      [Win32]::keybd_event([byte]$vk, 0, 0, [UIntPtr]::Zero)
+      [Win32]::keybd_event([byte]$vk, 0, 0x0002, [UIntPtr]::Zero)
+    } elseif ($k -eq 'power') {
+      Start-Process rundll32.exe -ArgumentList 'user32.dll,LockWorkStation'
+    } elseif ($k -eq 'fn') {
+      # Fn is hardware-level and generally cannot be synthesized from user mode.
+    }
+  } elseif ($parts[0] -eq 'D' -and $parts.Length -ge 2) {
+    $k = $parts[1]
+    $vk = Get-VkExtended($k)
+    if ($vk -ge 0) {
+      [Win32]::keybd_event([byte]$vk, 0, 0, [UIntPtr]::Zero)
+    }
+  } elseif ($parts[0] -eq 'U' -and $parts.Length -ge 2) {
+    $k = $parts[1]
+    $vk = Get-VkExtended($k)
+    if ($vk -ge 0) {
+      [Win32]::keybd_event([byte]$vk, 0, 0x0002, [UIntPtr]::Zero)
+    }
   } elseif ($parts[0] -eq 'P' -and $parts.Length -ge 2) {
     $b64 = $parts[1]
     $txt = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($b64))
@@ -93,9 +155,25 @@ function sendTap(xNorm, yNorm) {
   ps.stdin.write(`T ${x} ${y} ${button}\n`);
 }
 
-function sendArrow(direction) {
+function sendKey(key) {
   if (!ps.stdin.writable) return;
-  ps.stdin.write(`K ${direction}\n`);
+  const k = typeof key === "string" ? key.trim().toLowerCase() : "";
+  if (!k) return;
+  ps.stdin.write(`K ${k}\n`);
+}
+
+function sendKeyState(key, action) {
+  if (!ps.stdin.writable) return;
+  const k = typeof key === "string" ? key.trim().toLowerCase() : "";
+  const a = typeof action === "string" ? action.trim().toLowerCase() : "";
+  if (!k) return;
+  if (a === "down") {
+    ps.stdin.write(`D ${k}\n`);
+    return;
+  }
+  if (a === "up") {
+    ps.stdin.write(`U ${k}\n`);
+  }
 }
 
 function sendText(text) {
@@ -136,11 +214,15 @@ wss.on("connection", (ws) => {
       return;
     }
     if (msg.command === "move") {
-      sendArrow(msg?.params?.direction);
+      sendKey(msg?.params?.direction);
       return;
     }
     if (msg.command === "key") {
-      sendArrow(msg?.params?.key);
+      sendKey(msg?.params?.key);
+      return;
+    }
+    if (msg.command === "key_state") {
+      sendKeyState(msg?.params?.key, msg?.params?.action);
       return;
     }
     if (msg.command === "text") {
