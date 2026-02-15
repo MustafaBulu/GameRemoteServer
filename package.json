@@ -7,10 +7,14 @@
     "start": "node webrtc-server.js",
     "start:legacy": "node server.js",
     "pc:register": "node scripts/pc-register.js",
-    "pc:agent": "node scripts/pc-input-agent.js"
+    "pc:agent": "node scripts/pc-input-agent.js",
+    "dev:all": "concurrently \"npm:start\" \"npm:pc:agent\""
   },
   "dependencies": {
     "screenshot-desktop": "^1.15.3",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
   }
 }

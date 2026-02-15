@@ -86,6 +86,10 @@ function handleRegister(ws, msg) {
   const token = s.token || providedToken;
   if (!token) return safeSend(ws, { type: "error", message: "Missing token." });
 
+  if (role === "android" && !s.token) {
+    return safeSend(ws, { type: "error", message: "PC must register first." });
+  }
+
   if (role === "android" && (!providedToken || providedToken !== s.token)) {
     return safeSend(ws, { type: "error", message: "Invalid token." });
   }
@@ -96,7 +100,9 @@ function handleRegister(ws, msg) {
 
   const current = s[role];
   if (current && current !== ws && current.readyState === WebSocket.OPEN) {
-    return safeSend(ws, { type: "error", message: `${role} already connected.` });
+    // Allow seamless reconnect by replacing stale peer of same role.
+    safeSend(current, { type: "kicked", reason: "replaced_by_new_connection" });
+    try { current.close(4001, "Replaced by new connection"); } catch {}
   }
 
   s[role] = ws;

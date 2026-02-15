@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="tr">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -19,6 +19,27 @@
       object-fit: contain;
       background: #000;
       display: block;
+      touch-action: none;
+    }
+    .banner {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      right: 12px;
+      z-index: 55;
+      text-align: center;
+      font-size: 13px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      color: #e5ecfb;
+      background: rgba(10, 16, 28, 0.86);
+      border: 1px solid #2a3b57;
+      backdrop-filter: blur(4px);
+    }
+    .banner.warn {
+      border-color: #92400e;
+      background: rgba(40, 19, 2, 0.86);
+      color: #fde68a;
     }
     .toast-wrap {
       position: fixed;
@@ -40,6 +61,87 @@
       backdrop-filter: blur(4px);
       animation: fadeOut 2.2s ease forwards;
     }
+    .ripple {
+      position: fixed;
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      border: 2px solid rgba(56, 189, 248, 0.9);
+      background: rgba(56, 189, 248, 0.18);
+      transform: translate(-50%, -50%) scale(0.4);
+      pointer-events: none;
+      z-index: 60;
+      animation: ripple 420ms ease-out forwards;
+    }
+    .ripple.right {
+      border-color: rgba(251, 191, 36, 0.95);
+      background: rgba(251, 191, 36, 0.2);
+    }
+    .kbd-toggle,
+    .debug-toggle {
+      position: fixed;
+      bottom: 14px;
+      width: 52px;
+      height: 52px;
+      border-radius: 999px;
+      border: 1px solid #2a3b57;
+      background: rgba(10, 16, 28, 0.92);
+      color: #e5ecfb;
+      display: grid;
+      place-items: center;
+      z-index: 70;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    .kbd-toggle { right: 14px; font-size: 22px; }
+    .debug-toggle { left: 14px; font-size: 15px; }
+    .kbd-panel {
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      bottom: 76px;
+      z-index: 70;
+      display: none;
+      grid-template-columns: 1fr auto auto auto;
+      gap: 8px;
+      padding: 10px;
+      border-radius: 12px;
+      border: 1px solid #2a3b57;
+      background: rgba(10, 16, 28, 0.94);
+      backdrop-filter: blur(5px);
+    }
+    .kbd-panel input, .kbd-panel button {
+      height: 42px;
+      border-radius: 10px;
+      border: 1px solid #2a3b57;
+      background: #0f172a;
+      color: #e5ecfb;
+      padding: 0 10px;
+      font-size: 15px;
+    }
+    .kbd-panel button { min-width: 62px; }
+    .debug-panel {
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      bottom: 76px;
+      max-height: 34vh;
+      overflow: auto;
+      z-index: 69;
+      display: none;
+      white-space: pre-wrap;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 11px;
+      line-height: 1.35;
+      border-radius: 10px;
+      border: 1px solid #2a3b57;
+      background: rgba(8, 12, 24, 0.95);
+      color: #d8e4ff;
+      padding: 10px;
+    }
+    @keyframes ripple {
+      to { transform: translate(-50%, -50%) scale(2.8); opacity: 0; }
+    }
     @keyframes fadeOut {
       0% { opacity: 0; transform: translateY(6px); }
       12% { opacity: 1; transform: translateY(0); }
@@ -49,90 +151,581 @@
   </style>
 </head>
 <body>
-  <video id="remote" autoplay playsinline controls></video>
+  <video id="remote" autoplay playsinline></video>
+  <div id="banner" class="banner">Baglaniyor...</div>
   <div id="toasts" class="toast-wrap"></div>
+  <button id="debugToggle" class="debug-toggle" type="button">DBG</button>
+  <button id="kbdToggle" class="kbd-toggle" type="button">&#9000;</button>
+  <div id="kbdPanel" class="kbd-panel">
+    <input id="kbdInput" type="text" placeholder="Yaz ve gonder" />
+    <button id="kbdSend" type="button">Send</button>
+    <button id="kbdEnter" type="button">Enter</button>
+    <button id="kbdBack" type="button">Back</button>
+  </div>
+  <div id="debugPanel" class="debug-panel"></div>
 
   <script>
     const toastWrap = document.getElementById("toasts");
+    const banner = document.getElementById("banner");
+    const kbdPanel = document.getElementById("kbdPanel");
+    const kbdInput = document.getElementById("kbdInput");
+    const debugPanel = document.getElementById("debugPanel");
+    const remoteVideo = document.getElementById("remote");
+
+    const debugLines = [];
+    const debug = (...a) => {
+      const ts = new Date().toLocaleTimeString();
+      debugLines.push(`[${ts}] ${a.join(" ")}`);
+      while (debugLines.length > 180) debugLines.shift();
+      debugPanel.textContent = debugLines.join("\n");
+      debugPanel.scrollTop = debugPanel.scrollHeight;
+    };
+
     const log = (...a) => {
       const t = document.createElement("div");
       t.className = "toast";
       t.textContent = a.join(" ");
       toastWrap.appendChild(t);
       setTimeout(() => t.remove(), 2200);
+      debug(...a);
     };
+
+    const setBanner = (text, warn = false) => {
+      banner.textContent = text;
+      banner.classList.toggle("warn", warn);
+      banner.style.display = "block";
+      debug("banner:", text);
+    };
+
+    const hideBannerSoon = (ms = 1400) => setTimeout(() => { banner.style.display = "none"; }, ms);
 
     let ws;
     let pc;
     let inputChannel;
+    let connectCode = "";
+    let connectToken = "";
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+    let stoppedByAuthError = false;
+    let stoppedByKick = false;
+    let activeConnId = 0;
+    let remoteDescSet = false;
+    let pendingCandidates = [];
+    let noTrackTimer = null;
+    let trackReceived = false;
+
+    let lastTapTs = 0;
+    let lastTapX = 0;
+    let lastTapY = 0;
+    let pressTimer = null;
+    let holdActive = false;
+    let holdStartX = 0;
+    let holdStartY = 0;
+    let lastScrollY = 0;
+    let movedWhileHold = false;
+    let zoomed = false;
 
     function wsUrl() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       return `${scheme}://${location.host}/ws`;
     }
 
+    function clearReconnectTimer() {
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+        debug("clearReconnectTimer");
+      }
+    }
+
+    function clearNoTrackTimer() {
+      if (noTrackTimer) {
+        clearTimeout(noTrackTimer);
+        noTrackTimer = null;
+        debug("clearNoTrackTimer");
+      }
+    }
+
+    function isConnectionHealthy() {
+      const wsOk = ws && ws.readyState === WebSocket.OPEN;
+      const state = pc ? pc.connectionState : "";
+      const pcOk = state === "connected" || state === "connecting";
+      return Boolean(wsOk && pcOk);
+    }
+
+    function cleanupConnection() {
+      debug("cleanupConnection");
+      clearNoTrackTimer();
+      try {
+        if (ws) {
+          ws.onclose = null;
+          ws.onerror = null;
+          ws.onmessage = null;
+          ws.close();
+        }
+      } catch {}
+      try {
+        if (pc) {
+          pc.onconnectionstatechange = null;
+          pc.onicecandidate = null;
+          pc.ontrack = null;
+          pc.ondatachannel = null;
+          pc.close();
+        }
+      } catch {}
+      ws = null;
+      pc = null;
+      inputChannel = null;
+    }
+
+    function scheduleReconnect(reason) {
+      if (stoppedByAuthError || stoppedByKick) return;
+      if (reconnectTimer) return;
+      if (isConnectionHealthy()) return;
+      reconnectAttempt += 1;
+      const delay = Math.min(5000, 900 + reconnectAttempt * 350);
+      setBanner("Baglanti koptu, tekrar baglaniyor...", true);
+      log(reason || "Disconnected", `retry in ${delay}ms`);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        if (isConnectionHealthy()) return;
+        debug("reconnect timeout fired");
+        connect(connectCode, connectToken).catch((e) => {
+          debug("reconnect failed", e.message);
+          scheduleReconnect("Reconnect error: " + e.message);
+        });
+      }, delay);
+    }
+
     async function connect(code, token) {
+      const connId = ++activeConnId;
+      debug("connect", "connId=", connId, "code=", code);
+      cleanupConnection();
+      remoteDescSet = false;
+      pendingCandidates = [];
+      trackReceived = false;
+      connectCode = code;
+      connectToken = token;
+      setBanner("Baglaniyor...");
+
       pc = new RTCPeerConnection({
         iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
       });
+      debug("pc created");
 
       pc.ontrack = (ev) => {
-        document.getElementById("remote").srcObject = ev.streams[0];
+        if (connId !== activeConnId) return;
+        debug("pc.ontrack");
+        remoteVideo.srcObject = ev.streams[0];
+        remoteVideo.play().then(() => {
+          debug("video.play():ok");
+        }).catch((e) => {
+          debug("video.play():fail", e.message);
+        });
+        trackReceived = true;
+        clearNoTrackTimer();
+        clearReconnectTimer();
+        reconnectAttempt = 0;
+        setBanner("Baglandi");
+        hideBannerSoon();
         log("Connected");
       };
+
       pc.ondatachannel = (ev) => {
+        if (connId !== activeConnId) return;
+        debug("ondatachannel", ev.channel && ev.channel.label);
         if (ev.channel.label !== "input") return;
         inputChannel = ev.channel;
       };
+
       pc.onicecandidate = (ev) => {
+        if (connId !== activeConnId) return;
         if (!ev.candidate) return;
         ws.send(JSON.stringify({ type: "signal", token, target: "pc", data: { candidate: ev.candidate } }));
       };
 
+      pc.onconnectionstatechange = () => {
+        if (connId !== activeConnId) return;
+        const state = pc.connectionState;
+        debug("pc.state", state);
+        if (state === "failed" || state === "disconnected" || state === "closed") {
+          scheduleReconnect("Peer state: " + state);
+        }
+      };
+      pc.oniceconnectionstatechange = () => {
+        if (connId !== activeConnId) return;
+        debug("pc.ice", pc.iceConnectionState);
+      };
+      pc.onicegatheringstatechange = () => {
+        if (connId !== activeConnId) return;
+        debug("pc.gather", pc.iceGatheringState);
+      };
+
       ws = new WebSocket(wsUrl());
       ws.onopen = () => {
+        if (connId !== activeConnId) return;
+        debug("ws.onopen");
+        clearReconnectTimer();
+        clearNoTrackTimer();
+        noTrackTimer = setTimeout(() => {
+          if (connId !== activeConnId) return;
+          if (trackReceived) return;
+          debug("no track timeout");
+          scheduleReconnect("No track timeout");
+        }, 7000);
         ws.send(JSON.stringify({ type: "register", role: "android", code, token }));
       };
+
       ws.onmessage = async (ev) => {
-        const msg = JSON.parse(ev.data);
+        if (connId !== activeConnId) return;
+        let msg;
+        try {
+          msg = JSON.parse(ev.data);
+        } catch (e) {
+          debug("ws parse error", e.message);
+          return;
+        }
+        debug("ws.msg", msg.type || "unknown");
+
+        if (msg.type === "kicked") {
+          stoppedByKick = true;
+          setBanner("Oturum yenilendi, tekrar baglaniyor...", true);
+          debug("kicked -> stop reconnect");
+          return;
+        }
+
         if (msg.type === "signal" && msg.data?.sdp) {
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
+          debug("signal.sdp", msg.data.sdp.type);
+          try {
+            debug("setRemoteDescription:start");
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
+            debug("setRemoteDescription:ok");
+          } catch (e) {
+            debug("setRemoteDescription:fail", e.message);
+            scheduleReconnect("setRemoteDescription failed");
+            return;
+          }
+          remoteDescSet = true;
+          if (pendingCandidates.length) {
+            debug("flush candidates", pendingCandidates.length);
+            for (const c of pendingCandidates) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(c));
+                debug("addIceCandidate:queued:ok");
+              } catch (e) {
+                debug("addIceCandidate:queued:fail", e.message);
+              }
+            }
+            pendingCandidates = [];
+          }
           if (msg.data.sdp.type === "offer") {
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            ws.send(JSON.stringify({ type: "signal", token, target: "pc", data: { sdp: pc.localDescription } }));
+            try {
+              debug("createAnswer:start");
+              const answer = await pc.createAnswer();
+              debug("createAnswer:ok");
+              debug("setLocalDescription:start");
+              await pc.setLocalDescription(answer);
+              debug("setLocalDescription:ok");
+              ws.send(JSON.stringify({ type: "signal", token, target: "pc", data: { sdp: pc.localDescription } }));
+              clearReconnectTimer();
+              reconnectAttempt = 0;
+              debug("answer sent");
+            } catch (e) {
+              debug("answer flow fail", e.message);
+              scheduleReconnect("answer flow failed");
+            }
+          }
+          return;
+        }
+
+        if (msg.type === "signal" && msg.data?.candidate) {
+          if (!remoteDescSet) {
+            pendingCandidates.push(msg.data.candidate);
+            debug("queue candidate", pendingCandidates.length);
+          } else {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate));
+              debug("addIceCandidate:ok");
+            } catch (e) {
+              debug("addIceCandidate:fail", e.message);
+            }
+          }
+          return;
+        }
+
+        if (msg.type === "error") {
+          const m = msg.message || "Unknown signaling error";
+          log("ERROR:", m);
+          if (m.toLowerCase().includes("pc must register first")) {
+            setBanner("PC yayin acilmadi, bekleniyor...", true);
+            return;
+          }
+          if (m.toLowerCase().includes("invalid token") || m.toLowerCase().includes("invalid code")) {
+            stoppedByAuthError = true;
+            setBanner("Baglanti hatasi: code/token gecersiz", true);
           }
         }
-        if (msg.type === "signal" && msg.data?.candidate) {
-          try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
-        }
-        if (msg.type === "error") log("ERROR:", msg.message);
       };
-      ws.onclose = () => log("Disconnected");
+
+      ws.onclose = (ev) => {
+        if (connId !== activeConnId) return;
+        debug("ws.onclose", "code=", ev && ev.code, "reason=", ev && ev.reason);
+        if (ev && ev.code === 4001) {
+          stoppedByKick = true;
+          setBanner("Oturum yenilendi, tekrar baglaniyor...", true);
+          debug("close 4001 -> stop reconnect");
+          return;
+        }
+        scheduleReconnect("Signaling closed");
+      };
+
+      ws.onerror = () => {
+        if (connId !== activeConnId) return;
+        debug("ws.onerror");
+        scheduleReconnect("Signaling error");
+      };
     }
 
-    function sendTap(clientX, clientY) {
+    function mapPointToVideo(clientX, clientY) {
+      const video = document.getElementById("remote");
+      const rect = video.getBoundingClientRect();
+      if (!rect.width || !rect.height || !video.videoWidth || !video.videoHeight) return null;
+      const videoAspect = video.videoWidth / video.videoHeight;
+      const boxAspect = rect.width / rect.height;
+
+      let drawW, drawH, offsetX, offsetY;
+      if (videoAspect > boxAspect) {
+        drawW = rect.width;
+        drawH = rect.width / videoAspect;
+        offsetX = 0;
+        offsetY = (rect.height - drawH) / 2;
+      } else {
+        drawH = rect.height;
+        drawW = rect.height * videoAspect;
+        offsetY = 0;
+        offsetX = (rect.width - drawW) / 2;
+      }
+      const px = clientX - rect.left - offsetX;
+      const py = clientY - rect.top - offsetY;
+      const x = px / drawW;
+      const y = py / drawH;
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+      return { x: Math.max(0, Math.min(1, x)), y: Math.max(0, Math.min(1, y)) };
+    }
+
+    function sendTap(clientX, clientY, button = "left") {
       if (!inputChannel || inputChannel.readyState !== "open") return;
+      const pt = mapPointToVideo(clientX, clientY);
+      if (!pt) return;
+      inputChannel.send(JSON.stringify({ type: "input", command: "tap", params: { x: pt.x, y: pt.y, button } }));
+      showRipple(clientX, clientY, button);
+    }
+
+    function sendScroll(delta) {
+      if (!inputChannel || inputChannel.readyState !== "open") return;
+      if (!delta) return;
+      inputChannel.send(JSON.stringify({ type: "input", command: "scroll", params: { delta } }));
+    }
+
+    function sendText(text) {
+      if (!inputChannel || inputChannel.readyState !== "open") return;
+      const value = (text || "").trim();
+      if (!value) return;
+      inputChannel.send(JSON.stringify({ type: "input", command: "text", params: { text: value } }));
+      log("Text sent");
+    }
+
+    function sendKey(key) {
+      if (!inputChannel || inputChannel.readyState !== "open") return;
+      inputChannel.send(JSON.stringify({ type: "input", command: "key", params: { key } }));
+    }
+
+    function showRipple(x, y, button = "left") {
+      const el = document.createElement("div");
+      el.className = button === "right" ? "ripple right" : "ripple";
+      el.style.left = `${x}px`;
+      el.style.top = `${y}px`;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 450);
+    }
+
+    function toggleZoomAt(clientX, clientY) {
       const video = document.getElementById("remote");
       const rect = video.getBoundingClientRect();
       if (!rect.width || !rect.height) return;
-      const x = (clientX - rect.left) / rect.width;
-      const y = (clientY - rect.top) / rect.height;
-      inputChannel.send(JSON.stringify({
-        type: "input",
-        command: "tap",
-        params: { x, y, button: "left" }
-      }));
+      if (!zoomed) {
+        const zx = ((clientX - rect.left) / rect.width) * 100;
+        const zy = ((clientY - rect.top) / rect.height) * 100;
+        video.style.transformOrigin = `${zx}% ${zy}%`;
+        video.style.transform = "scale(2)";
+        zoomed = true;
+        log("Zoom x2");
+      } else {
+        video.style.transform = "scale(1)";
+        video.style.transformOrigin = "50% 50%";
+        zoomed = false;
+        log("Zoom reset");
+      }
     }
 
-    const remoteVideo = document.getElementById("remote");
-    remoteVideo.addEventListener("click", (ev) => sendTap(ev.clientX, ev.clientY));
-    remoteVideo.addEventListener("touchend", (ev) => {
-      const t = ev.changedTouches && ev.changedTouches[0];
-      if (!t) return;
-      sendTap(t.clientX, t.clientY);
-      ev.preventDefault();
-    }, { passive: false });
+    if (window.PointerEvent) {
+      remoteVideo.addEventListener("pointerdown", (ev) => {
+        holdActive = false;
+        movedWhileHold = false;
+        holdStartX = ev.clientX;
+        holdStartY = ev.clientY;
+        lastScrollY = ev.clientY;
+        clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => {
+          holdActive = true;
+          log("Hold mode");
+        }, 420);
+        ev.preventDefault();
+      });
+
+      remoteVideo.addEventListener("pointermove", (ev) => {
+        if (!holdActive) return;
+        const dy = ev.clientY - lastScrollY;
+        if (Math.abs(dy) >= 18) {
+          const steps = Math.trunc(dy / 18);
+          if (steps !== 0) {
+            sendScroll(-steps);
+            lastScrollY += steps * 18;
+            movedWhileHold = true;
+          }
+        }
+        ev.preventDefault();
+      });
+
+      remoteVideo.addEventListener("pointerup", (ev) => {
+        clearTimeout(pressTimer);
+        if (holdActive) {
+          const travel = Math.hypot(ev.clientX - holdStartX, ev.clientY - holdStartY);
+          if (!movedWhileHold && travel < 12) sendTap(ev.clientX, ev.clientY, "right");
+          holdActive = false;
+          ev.preventDefault();
+          return;
+        }
+        const now = Date.now();
+        const dx = Math.abs(ev.clientX - lastTapX);
+        const dy = Math.abs(ev.clientY - lastTapY);
+        if (now - lastTapTs < 280 && dx < 28 && dy < 28) {
+          toggleZoomAt(ev.clientX, ev.clientY);
+          lastTapTs = 0;
+        } else {
+          sendTap(ev.clientX, ev.clientY, "left");
+          lastTapTs = now;
+          lastTapX = ev.clientX;
+          lastTapY = ev.clientY;
+        }
+        ev.preventDefault();
+      });
+      remoteVideo.addEventListener("pointercancel", () => clearTimeout(pressTimer));
+    } else {
+      remoteVideo.addEventListener("touchstart", (ev) => {
+        const t = ev.changedTouches && ev.changedTouches[0];
+        if (!t) return;
+        holdActive = false;
+        movedWhileHold = false;
+        holdStartX = t.clientX;
+        holdStartY = t.clientY;
+        lastScrollY = t.clientY;
+        clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => {
+          holdActive = true;
+          log("Hold mode");
+        }, 420);
+        const now = Date.now();
+        const dx = Math.abs(t.clientX - lastTapX);
+        const dy = Math.abs(t.clientY - lastTapY);
+        if (now - lastTapTs < 280 && dx < 28 && dy < 28) {
+          clearTimeout(pressTimer);
+          toggleZoomAt(t.clientX, t.clientY);
+          lastTapTs = 0;
+          holdActive = true;
+        } else {
+          lastTapTs = now;
+          lastTapX = t.clientX;
+          lastTapY = t.clientY;
+        }
+        ev.preventDefault();
+      }, { passive: false });
+
+      remoteVideo.addEventListener("touchmove", (ev) => {
+        if (!holdActive) return;
+        const t = ev.changedTouches && ev.changedTouches[0];
+        if (!t) return;
+        const dy = t.clientY - lastScrollY;
+        if (Math.abs(dy) >= 18) {
+          const steps = Math.trunc(dy / 18);
+          if (steps !== 0) {
+            sendScroll(-steps);
+            lastScrollY += steps * 18;
+            movedWhileHold = true;
+          }
+        }
+        ev.preventDefault();
+      }, { passive: false });
+
+      remoteVideo.addEventListener("touchend", (ev) => {
+        clearTimeout(pressTimer);
+        if (holdActive) {
+          const t = ev.changedTouches && ev.changedTouches[0];
+          if (t) {
+            const travel = Math.hypot(t.clientX - holdStartX, t.clientY - holdStartY);
+            if (!movedWhileHold && travel < 12) sendTap(t.clientX, t.clientY, "right");
+          }
+          holdActive = false;
+          ev.preventDefault();
+          return;
+        }
+        const t = ev.changedTouches && ev.changedTouches[0];
+        if (!t) return;
+        sendTap(t.clientX, t.clientY, "left");
+        ev.preventDefault();
+      }, { passive: false });
+    }
+
+    document.getElementById("kbdToggle").addEventListener("click", () => {
+      const open = kbdPanel.style.display === "grid";
+      kbdPanel.style.display = open ? "none" : "grid";
+      if (!open) setTimeout(() => kbdInput.focus(), 80);
+    });
+    document.getElementById("kbdSend").addEventListener("click", () => {
+      sendText(kbdInput.value);
+      kbdInput.value = "";
+      kbdInput.focus();
+    });
+    document.getElementById("kbdEnter").addEventListener("click", () => sendKey("enter"));
+    document.getElementById("kbdBack").addEventListener("click", () => sendKey("backspace"));
+    kbdInput.addEventListener("keydown", (ev) => {
+      if (ev.key === "Enter") {
+        sendText(kbdInput.value);
+        kbdInput.value = "";
+        ev.preventDefault();
+      }
+    });
+
+    document.getElementById("debugToggle").addEventListener("click", () => {
+      const open = debugPanel.style.display === "block";
+      debugPanel.style.display = open ? "none" : "block";
+    });
+
+    remoteVideo.addEventListener("loadedmetadata", () => {
+      debug("video.loadedmetadata", remoteVideo.videoWidth + "x" + remoteVideo.videoHeight);
+    });
+    remoteVideo.addEventListener("playing", () => {
+      debug("video.playing");
+    });
+    remoteVideo.addEventListener("waiting", () => {
+      debug("video.waiting");
+    });
+    remoteVideo.addEventListener("stalled", () => {
+      debug("video.stalled");
+    });
+    remoteVideo.addEventListener("error", () => {
+      debug("video.error");
+    });
 
     (function boot() {
       const p = new URLSearchParams(location.search);
@@ -140,10 +733,16 @@
       const token = p.get("token") || "";
       if (!/^\d{6}$/.test(code) || token.length < 4) {
         log("Missing/invalid code or token.");
+        setBanner("Gecersiz code/token", true);
         return;
       }
       connect(code, token).catch((e) => log("Connect failed:", e.message));
     })();
+
+    window.addEventListener("pagehide", () => {
+      stoppedByAuthError = true;
+      cleanupConnection();
+    });
   </script>
 </body>
 </html>

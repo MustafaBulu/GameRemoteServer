@@ -136,6 +136,13 @@
     let code = "";
     let token = "";
     let agentWs = null;
+    let captureStream = null;
+    let reconnectTimer = null;
+    let reconnectAttempt = 0;
+    let started = false;
+    let wsConnId = 0;
+    let restarting = false;
+    let renegotiating = false;
 
     function wsUrl() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
@@ -146,55 +153,72 @@
       code = document.getElementById("code").value.trim();
       token = document.getElementById("token").value.trim();
       if (!/^\d{6}$/.test(code) || token.length < 4) return log("Invalid code/token.");
-
-      setStatus("Connecting...");
-      ws = new WebSocket(wsUrl());
-      ws.onopen = async () => {
-        log("WS connected.");
-        connectAgent();
-        ws.send(JSON.stringify({ type: "register", role: "pc", code, token }));
-        await initPeer();
-      };
-      ws.onmessage = async (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "registered") {
-          setStatus("Registered");
-          log(`Registered token=${msg.token || token}`);
-        }
-        if (msg.type === "peer_connected") {
-          log("Android connected, creating offer...");
-          const offer = await pc.createOffer();
-          await pc.setLocalDescription(offer);
-          ws.send(JSON.stringify({ type: "signal", token, target: "android", data: { sdp: pc.localDescription } }));
-        }
-        if (msg.type === "signal" && msg.data?.sdp) {
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
-          if (msg.data.sdp.type === "offer") {
-            const answer = await pc.createAnswer();
-            await pc.setLocalDescription(answer);
-            ws.send(JSON.stringify({ type: "signal", token, target: "android", data: { sdp: pc.localDescription } }));
-          }
-        }
-        if (msg.type === "signal" && msg.data?.candidate) {
-          try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
-        }
-        if (msg.type === "error") {
-          log("ERROR:", msg.message);
-          setStatus("Error");
-        }
-      };
-      ws.onclose = () => setStatus("Disconnected");
+      started = true;
+      reconnectAttempt = 0;
+      connectAgent();
+      await ensureCaptureStream();
+      await recreatePeer();
+      connectSignaling();
     }
 
-    async function initPeer() {
+    async function ensureCaptureStream() {
+      const ended = captureStream && captureStream.getTracks().every((t) => t.readyState === "ended");
+      if (!captureStream || ended) {
+        captureStream = await navigator.mediaDevices.getDisplayMedia({
+          video: { frameRate: { ideal: 60, max: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+          audio: false
+        });
+        document.getElementById("preview").srcObject = captureStream;
+        log("Display stream started.");
+        bindCaptureLifecycle(captureStream);
+      }
+    }
+
+    function bindCaptureLifecycle(stream) {
+      stream.getVideoTracks().forEach((track) => {
+        track.onended = () => {
+          if (!started) return;
+          log("Display capture ended. Restarting capture...");
+          restartPipeline("Capture ended");
+        };
+      });
+    }
+
+    function cleanupPeer() {
+      try {
+        if (pc) {
+          pc.onicecandidate = null;
+          pc.onconnectionstatechange = null;
+          pc.close();
+        }
+      } catch {}
+      pc = null;
+      inputChannel = null;
+    }
+
+    async function recreatePeer() {
+      cleanupPeer();
       pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
       pc.onicecandidate = (ev) => {
         if (!ev.candidate) return;
-        ws.send(JSON.stringify({ type: "signal", token, target: "android", data: { candidate: ev.candidate } }));
+        sendWs({ type: "signal", token, target: "android", data: { candidate: ev.candidate } });
       };
-      pc.onconnectionstatechange = () => setStatus("Peer: " + pc.connectionState);
+      pc.onconnectionstatechange = () => {
+        const s = pc.connectionState;
+        setStatus("Peer: " + s);
+        log("Peer state:", s);
+      };
+      pc.oniceconnectionstatechange = () => {
+        log("ICE state:", pc.iceConnectionState);
+      };
+      pc.onicegatheringstatechange = () => {
+        log("ICE gather:", pc.iceGatheringState);
+      };
 
-      inputChannel = pc.createDataChannel("input");
+      inputChannel = pc.createDataChannel("input", {
+        ordered: false,
+        maxRetransmits: 0
+      });
       inputChannel.onopen = () => log("Input channel open.");
       inputChannel.onmessage = (ev) => {
         log("Input:", ev.data);
@@ -202,15 +226,129 @@
           agentWs.send(ev.data);
         }
       };
-
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { frameRate: { ideal: 60, max: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-        audio: false
-      });
-      document.getElementById("preview").srcObject = stream;
-      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      captureStream.getTracks().forEach((t) => pc.addTrack(t, captureStream));
       setStatus("Broadcasting");
-      log("Display stream started.");
+    }
+
+    async function sendFreshOffer(reason) {
+      if (!pc) return;
+      if (renegotiating) return;
+      renegotiating = true;
+      try {
+        log("Creating offer:", reason);
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        sendWs({ type: "signal", token, target: "android", data: { sdp: pc.localDescription } });
+        log("Offer sent.");
+      } finally {
+        renegotiating = false;
+      }
+    }
+
+    function connectSignaling() {
+      const connId = ++wsConnId;
+      setStatus("Connecting...");
+      ws = new WebSocket(wsUrl());
+      ws.onopen = async () => {
+        if (connId !== wsConnId) return;
+        log("WS connected.");
+        sendWs({ type: "register", role: "pc", code, token });
+      };
+      ws.onmessage = async (ev) => {
+        if (connId !== wsConnId) return;
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "registered") {
+          reconnectAttempt = 0;
+          setStatus("Registered");
+          log(`Registered token=${msg.token || token}`);
+          if (msg.paired) {
+            log("Peer already connected, resetting peer for clean ICE...");
+            await recreatePeer();
+            await sendFreshOffer("registered_paired");
+          }
+          return;
+        }
+        if (msg.type === "peer_connected") {
+          log("Android connected, resetting peer for clean ICE...");
+          await recreatePeer();
+          await sendFreshOffer("peer_connected");
+          return;
+        }
+        if (msg.type === "peer_disconnected") {
+          log("Android disconnected.");
+          return;
+        }
+        if (msg.type === "signal" && msg.data?.sdp) {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
+          if (msg.data.sdp.type === "offer") {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            sendWs({ type: "signal", token, target: "android", data: { sdp: pc.localDescription } });
+          }
+          return;
+        }
+        if (msg.type === "signal" && msg.data?.candidate) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
+          return;
+        }
+        if (msg.type === "error") {
+          log("ERROR:", msg.message);
+          setStatus("Error");
+        }
+      };
+      ws.onclose = () => {
+        if (connId !== wsConnId) return;
+        setStatus("Disconnected");
+        scheduleReconnect("Signaling closed");
+      };
+      ws.onerror = () => {
+        if (connId !== wsConnId) return;
+        scheduleReconnect("Signaling error");
+      };
+    }
+
+    function sendWs(payload) {
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(payload));
+      }
+    }
+
+    function scheduleReconnect(reason) {
+      if (!started) return;
+      if (reconnectTimer) return;
+      reconnectAttempt += 1;
+      const delay = Math.min(4000, 700 + reconnectAttempt * 300);
+      log(reason, `retry in ${delay}ms`);
+      reconnectTimer = setTimeout(async () => {
+        reconnectTimer = null;
+        try {
+          await ensureCaptureStream();
+          await recreatePeer();
+          connectSignaling();
+        } catch (e) {
+          scheduleReconnect("Reconnect failed: " + e.message);
+        }
+      }, delay);
+    }
+
+    function restartPipeline(reason) {
+      if (restarting) return;
+      restarting = true;
+      log(reason);
+      setTimeout(async () => {
+        try {
+          const old = ws;
+          ws = null;
+          try { if (old) old.close(); } catch {}
+          await ensureCaptureStream();
+          await recreatePeer();
+          connectSignaling();
+        } catch (e) {
+          scheduleReconnect("Restart failed: " + e.message);
+        } finally {
+          restarting = false;
+        }
+      }, 120);
     }
 
     document.getElementById("start").onclick = () => start().catch((e) => {

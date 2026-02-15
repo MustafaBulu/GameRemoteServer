@@ -13,7 +13,8 @@
         android:theme="@style/Theme.GameRemoteAndroid">
         <activity
             android:name=".WebRtcViewerActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:screenOrientation="sensorLandscape" />
         <activity
             android:name=".MainActivity"
             android:exported="true">
