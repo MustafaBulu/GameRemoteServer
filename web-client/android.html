@@ -152,6 +152,7 @@
 </head>
 <body>
   <video id="remote" autoplay playsinline></video>
+  <audio id="remoteAudio" autoplay></audio>
   <div id="banner" class="banner">Baglaniyor...</div>
   <div id="toasts" class="toast-wrap"></div>
   <button id="debugToggle" class="debug-toggle" type="button">DBG</button>
@@ -171,6 +172,12 @@
     const kbdInput = document.getElementById("kbdInput");
     const debugPanel = document.getElementById("debugPanel");
     const remoteVideo = document.getElementById("remote");
+    const remoteAudio = document.getElementById("remoteAudio");
+    remoteVideo.muted = false;
+    remoteVideo.volume = 1.0;
+    remoteVideo.setAttribute("webkit-playsinline", "true");
+    remoteAudio.muted = false;
+    remoteAudio.volume = 1.0;
 
     const debugLines = [];
     const debug = (...a) => {
@@ -315,13 +322,28 @@
 
       pc.ontrack = (ev) => {
         if (connId !== activeConnId) return;
-        debug("pc.ontrack");
-        remoteVideo.srcObject = ev.streams[0];
+        const stream = ev.streams && ev.streams[0];
+        const kind = ev.track && ev.track.kind ? ev.track.kind : "unknown";
+        debug("pc.ontrack", "kind=", kind);
+        if (!stream) return;
+        const aCount = stream.getAudioTracks().length;
+        const vCount = stream.getVideoTracks().length;
+        debug("remote tracks", `video=${vCount}`, `audio=${aCount}`);
+        remoteVideo.srcObject = stream;
+        remoteAudio.srcObject = stream;
         remoteVideo.play().then(() => {
           debug("video.play():ok");
         }).catch((e) => {
           debug("video.play():fail", e.message);
         });
+        remoteAudio.play().then(() => {
+          debug("audio.play():ok");
+        }).catch((e) => {
+          debug("audio.play():fail", e.message);
+        });
+        if (!aCount) {
+          log("No audio track received from PC");
+        }
         trackReceived = true;
         clearNoTrackTimer();
         clearReconnectTimer();
@@ -570,6 +592,12 @@
 
     if (window.PointerEvent) {
       remoteVideo.addEventListener("pointerdown", (ev) => {
+        if (remoteVideo.paused) {
+          remoteVideo.play().catch(() => {});
+        }
+        if (remoteAudio.paused) {
+          remoteAudio.play().catch(() => {});
+        }
         holdActive = false;
         movedWhileHold = false;
         holdStartX = ev.clientX;
@@ -623,6 +651,12 @@
       remoteVideo.addEventListener("pointercancel", () => clearTimeout(pressTimer));
     } else {
       remoteVideo.addEventListener("touchstart", (ev) => {
+        if (remoteVideo.paused) {
+          remoteVideo.play().catch(() => {});
+        }
+        if (remoteAudio.paused) {
+          remoteAudio.play().catch(() => {});
+        }
         const t = ev.changedTouches && ev.changedTouches[0];
         if (!t) return;
         holdActive = false;

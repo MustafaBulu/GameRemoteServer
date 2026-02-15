@@ -166,10 +166,15 @@
       if (!captureStream || ended) {
         captureStream = await navigator.mediaDevices.getDisplayMedia({
           video: { frameRate: { ideal: 60, max: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
-          audio: false
+          audio: true
         });
         document.getElementById("preview").srcObject = captureStream;
-        log("Display stream started.");
+        const vCount = captureStream.getVideoTracks().length;
+        const aCount = captureStream.getAudioTracks().length;
+        log(`Display stream started. video=${vCount} audio=${aCount}`);
+        if (!aCount) {
+          log("No audio track captured. In share dialog, enable system/tab audio.");
+        }
         bindCaptureLifecycle(captureStream);
       }
     }
@@ -227,6 +232,8 @@
         }
       };
       captureStream.getTracks().forEach((t) => pc.addTrack(t, captureStream));
+      const senderKinds = pc.getSenders().map((s) => (s.track ? s.track.kind : "none")).join(",");
+      log("Senders:", senderKinds || "none");
       setStatus("Broadcasting");
     }
 
