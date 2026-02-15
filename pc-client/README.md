@@ -6,6 +6,8 @@ Desktop client for `GameRemoteServer` that connects as `pc`, receives input pack
 
 - Local input execution is **disabled by default**
 - A session token is required for pairing
+- Incoming commands are restricted by allowlist (`move` + `up/down/left/right`)
+- Input execution is rate-limited (max 12 inputs/second)
 - Use only on your personal machine, not on shared/public PCs
 
 ## Requirements

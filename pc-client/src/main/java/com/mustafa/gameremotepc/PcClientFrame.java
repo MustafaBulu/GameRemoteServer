@@ -13,16 +13,23 @@ import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
+import java.util.ArrayDeque;
+import java.util.Set;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
 public class PcClientFrame extends JFrame implements PcWebSocketClient.Listener {
+    private static final Set<String> ALLOWED_COMMANDS = Set.of("move");
+    private static final Set<String> ALLOWED_DIRECTIONS = Set.of("up", "down", "left", "right");
+    private static final int MAX_INPUTS_PER_SECOND = 12;
+
     private final JTextField urlField = new JTextField("ws://localhost:37841");
     private final JTextField codeField = new JTextField("123456");
     private final JTextField tokenField = new JTextField(generateToken());
     private final JLabel statusLabel = new JLabel("Status: Disconnected");
     private final JCheckBox enableControlCheckbox = new JCheckBox("Enable local input control");
     private final JTextArea logArea = new JTextArea();
+    private final ArrayDeque<Long> inputTimestamps = new ArrayDeque<>();
 
     private final PcWebSocketClient webSocketClient;
     private final InputExecutor inputExecutor = new InputExecutor();
@@ -115,10 +122,23 @@ public class PcClientFrame extends JFrame implements PcWebSocketClient.Listener 
             if ("registered".equals(type) && json.has("token")) {
                 tokenField.setText(json.optString("token", tokenField.getText().trim()));
             }
-            if ("input".equals(type) && "move".equals(json.optString("command"))) {
+            if ("input".equals(type)) {
+                String command = json.optString("command");
+                if (!ALLOWED_COMMANDS.contains(command)) {
+                    appendLog("Blocked input: command not allowed (" + command + ").");
+                    return;
+                }
                 JSONObject params = json.optJSONObject("params");
                 String direction = params == null ? "" : params.optString("direction");
+                if (!ALLOWED_DIRECTIONS.contains(direction)) {
+                    appendLog("Blocked input: direction not allowed (" + direction + ").");
+                    return;
+                }
                 if (enableControlCheckbox.isSelected()) {
+                    if (!canExecuteInputNow()) {
+                        appendLog("Blocked input: rate limit exceeded.");
+                        return;
+                    }
                     inputExecutor.executeMove(direction);
                     appendLog("Executed input: " + direction);
                 } else {
@@ -151,6 +171,19 @@ public class PcClientFrame extends JFrame implements PcWebSocketClient.Listener 
     private void appendLog(String line) {
         String ts = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         logArea.append("[" + ts + "] " + line + "\n");
+    }
+
+    private boolean canExecuteInputNow() {
+        long now = System.currentTimeMillis();
+        long minTimestamp = now - 1000;
+        while (!inputTimestamps.isEmpty() && inputTimestamps.peekFirst() < minTimestamp) {
+            inputTimestamps.removeFirst();
+        }
+        if (inputTimestamps.size() >= MAX_INPUTS_PER_SECOND) {
+            return false;
+        }
+        inputTimestamps.addLast(now);
+        return true;
     }
 
     private static String generateToken() {
