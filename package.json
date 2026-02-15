@@ -1,0 +1,12 @@
+{
+  "name": "game-remote-server",
+  "version": "1.0.0",
+  "description": "WebSocket relay server for PC and Android pairing",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
