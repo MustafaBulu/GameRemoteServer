@@ -4,7 +4,8 @@
   "description": "WebSocket relay server for PC and Android pairing",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "pc:register": "node scripts/pc-register.js"
   },
   "dependencies": {
     "ws": "^8.18.0"
