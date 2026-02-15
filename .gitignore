@@ -2,6 +2,7 @@ node_modules/
 android-client/.gradle/
 android-client/build/
 android-client/app/build/
+android-client/local.properties
 pc-client/target/
 
 .idea/

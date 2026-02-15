@@ -1,110 +1,67 @@
-# GameRemoteServer
+# GameRemoteServer (WebRTC Edition)
 
-A simple Node.js WebSocket server that pairs PC and Android clients and relays input packets from Android to PC.
+This project is upgraded to a WebRTC-based architecture to target high frame rate screen streaming (up to 60 FPS depending on device/network/GPU).
 
-## Features
+## What changed
 
-- WebSocket server (`ws://localhost:37841`)
-- Session management with a 6-digit pairing code
-- Pairing `pc` and `android` roles under the same code
-- Token-based pairing validation between devices
-- Android -> PC input relay
-- JSON-based packet protocol
-- Console logs for connections, packets, and errors
-
-## Requirements
-
-- Node.js 18+ (recommended)
-- npm
-
-## Installation
-
-```bash
-npm install
-```
+- Replaced frame-by-frame base64 relay as main path with WebRTC video streaming.
+- Node server now works as:
+  - signaling server (`/ws`)
+  - static file server for web clients
+- Low-latency video: PC shares display with `getDisplayMedia`.
+- Input commands are sent from viewer to PC over WebRTC data channel.
 
 ## Run
 
 ```bash
+npm install
 npm start
 ```
 
-Default port: `37841`  
-To run on a different port:
+For game input (click/arrow) on Windows PC, run local input agent in another terminal:
 
 ```bash
-PORT=5000 npm start
+npm run pc:agent
 ```
 
-PowerShell:
+Server URLs:
 
-```powershell
-$env:PORT=5000; npm start
+- PC broadcaster page: `http://localhost:37841/pc.html`
+- Android viewer page: `http://localhost:37841/android.html`
+- Android app built-in viewer: open app and tap `Open WebRTC Viewer`
+
+Legacy websocket relay server is still available:
+
+```bash
+npm run start:legacy
 ```
 
-## Packet Protocol
+## Pairing
 
-All messages are JSON.
+Use the same values on both pages:
 
-### 1. Register
+- `code`: 6-digit number (example `123456`)
+- `token`: shared secret (example `ABCD1234`)
 
-Each client must register first.
+## 60 FPS notes
 
-```json
-{
-  "type": "register",
-  "role": "pc",
-  "code": "123456",
-  "token": "ABCD1234"
-}
-```
+WebRTC can reach 60 FPS, but actual FPS depends on:
 
-- `role`: `pc` or `android`
-- `code`: 6-digit numeric code (if omitted, the server generates one)
-- `token`: shared session token (required for Android; recommended for PC)
+- hardware encoder availability
+- network quality
+- browser/device limits
+- selected screen resolution
 
-### 2. Input (Android -> PC)
+For better FPS:
 
-Example packet sent by Android:
+- use Chrome/Edge on PC
+- keep both devices on strong local Wi-Fi
+- stream a single monitor/window when possible
 
-```json
-{
-  "type": "input",
-  "code": "123456",
-  "token": "ABCD1234",
-  "target": "pc",
-  "command": "move",
-  "params": {
-    "direction": "up"
-  }
-}
-```
+## Files
 
-The server forwards this packet to the paired PC client.
-
-## Server Responses (Examples)
-
-- `hello`: initial message on connection
-- `registered`: registration successful
-- `peer_connected`: paired device connected
-- `peer_disconnected`: paired device disconnected
-- `input_ack`: input packet delivered
-- `error`: invalid packet / role / code / target
-
-## Quick Test Flow
-
-1. PC client connects and sends `register` with `role: "pc"`.
-2. Android client connects with the same `code` and `token` and `role: "android"`.
-3. Android sends an `input` packet.
-4. PC client receives the forwarded `input` packet.
-
-## Security Notes
-
-- Do not run this setup on shared/public PCs.
-- Keep pairing code and token private.
-- The server masks sensitive fields in logs and expires inactive sessions.
-
-## Clients
-
-- Android client: `android-client/`
-- Java PC client: `pc-client/`
+- `webrtc-server.js`: signaling + static web server
+- `web-client/pc.html`: PC broadcaster
+- `web-client/android.html`: Android viewer
+- `scripts/pc-input-agent.js`: local Windows input bridge (mouse/keyboard)
+- `server.js`: old relay server (legacy path)

@@ -4,6 +4,7 @@ const PORT = process.env.PORT || 37841;
 const wss = new WebSocket.Server({ port: PORT });
 const SESSION_TTL_MS = 10 * 60 * 1000;
 const CLEANUP_INTERVAL_MS = 30 * 1000;
+const MAX_PACKET_SIZE = 10 * 1024 * 1024;
 
 // code -> { pc: WebSocket | null, android: WebSocket | null, token: string, lastActivity: number }
 const sessions = new Map();
@@ -58,6 +59,7 @@ function sanitizePacketForLog(msg) {
     role: msg.role || undefined,
     target: msg.target || undefined,
     command: msg.command || undefined,
+    frameBytes: typeof msg.frame === "string" ? msg.frame.length : undefined,
     code: normalizeCode(msg.code) ? maskCode(msg.code) : undefined
   };
 }
@@ -249,9 +251,60 @@ function handleInput(ws, msg) {
   }));
 }
 
+function handleFrame(ws, msg) {
+  const meta = clientMeta.get(ws);
+  if (!meta) {
+    safeSend(ws, { type: "error", message: "Not registered. Send register packet first." });
+    return;
+  }
+
+  const code = normalizeCode(msg.code) || meta.code;
+  if (!code || code !== meta.code) {
+    safeSend(ws, { type: "error", message: "Invalid or mismatched code." });
+    return;
+  }
+
+  if (meta.role !== "pc") {
+    safeSend(ws, { type: "error", message: "Only pc clients can send frame packets." });
+    return;
+  }
+
+  const token = normalizeToken(msg.token);
+  const target = normalizeRole(msg.target);
+  const frame = typeof msg.frame === "string" ? msg.frame : "";
+  if (target !== "android") {
+    safeSend(ws, { type: "error", message: "Only target='android' is supported for frames." });
+    return;
+  }
+  if (!frame) {
+    safeSend(ws, { type: "error", message: "Missing frame payload." });
+    return;
+  }
+
+  const session = sessions.get(code);
+  if (!session || !session.android || session.android.readyState !== WebSocket.OPEN) {
+    safeSend(ws, { type: "error", message: "Android is not connected.", code });
+    return;
+  }
+  if (!token || token !== session.token) {
+    safeSend(ws, { type: "error", message: "Invalid token." });
+    return;
+  }
+
+  safeSend(session.android, {
+    type: "frame",
+    code,
+    from: "pc",
+    target: "android",
+    format: msg.format || "png",
+    frame
+  });
+  markSessionActivity(code);
+}
+
 function handleMessage(ws, rawData) {
   const text = rawData.toString();
-  if (text.length > 16384) {
+  if (text.length > MAX_PACKET_SIZE) {
     safeSend(ws, { type: "error", message: "Packet too large." });
     return;
   }
@@ -277,6 +330,11 @@ function handleMessage(ws, rawData) {
 
   if (msg.type === "input") {
     handleInput(ws, msg);
+    return;
+  }
+
+  if (msg.type === "frame") {
+    handleFrame(ws, msg);
     return;
   }
 

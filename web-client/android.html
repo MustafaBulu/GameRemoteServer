@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Remote Viewer</title>
+  <style>
+    html, body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: #000;
+      overflow: hidden;
+      font-family: "Segoe UI", sans-serif;
+    }
+    #remote {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+      background: #000;
+      display: block;
+    }
+    .toast-wrap {
+      position: fixed;
+      left: 12px;
+      right: 12px;
+      bottom: 16px;
+      display: grid;
+      gap: 8px;
+      pointer-events: none;
+      z-index: 50;
+    }
+    .toast {
+      background: rgba(10, 16, 28, 0.9);
+      border: 1px solid #2a3b57;
+      border-radius: 10px;
+      padding: 10px 12px;
+      color: #e5ecfb;
+      font-size: 13px;
+      backdrop-filter: blur(4px);
+      animation: fadeOut 2.2s ease forwards;
+    }
+    @keyframes fadeOut {
+      0% { opacity: 0; transform: translateY(6px); }
+      12% { opacity: 1; transform: translateY(0); }
+      80% { opacity: 1; }
+      100% { opacity: 0; transform: translateY(4px); }
+    }
+  </style>
+</head>
+<body>
+  <video id="remote" autoplay playsinline controls></video>
+  <div id="toasts" class="toast-wrap"></div>
+
+  <script>
+    const toastWrap = document.getElementById("toasts");
+    const log = (...a) => {
+      const t = document.createElement("div");
+      t.className = "toast";
+      t.textContent = a.join(" ");
+      toastWrap.appendChild(t);
+      setTimeout(() => t.remove(), 2200);
+    };
+
+    let ws;
+    let pc;
+    let inputChannel;
+
+    function wsUrl() {
+      const scheme = location.protocol === "https:" ? "wss" : "ws";
+      return `${scheme}://${location.host}/ws`;
+    }
+
+    async function connect(code, token) {
+      pc = new RTCPeerConnection({
+        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+      });
+
+      pc.ontrack = (ev) => {
+        document.getElementById("remote").srcObject = ev.streams[0];
+        log("Connected");
+      };
+      pc.ondatachannel = (ev) => {
+        if (ev.channel.label !== "input") return;
+        inputChannel = ev.channel;
+      };
+      pc.onicecandidate = (ev) => {
+        if (!ev.candidate) return;
+        ws.send(JSON.stringify({ type: "signal", token, target: "pc", data: { candidate: ev.candidate } }));
+      };
+
+      ws = new WebSocket(wsUrl());
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: "register", role: "android", code, token }));
+      };
+      ws.onmessage = async (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "signal" && msg.data?.sdp) {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
+          if (msg.data.sdp.type === "offer") {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({ type: "signal", token, target: "pc", data: { sdp: pc.localDescription } }));
+          }
+        }
+        if (msg.type === "signal" && msg.data?.candidate) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
+        }
+        if (msg.type === "error") log("ERROR:", msg.message);
+      };
+      ws.onclose = () => log("Disconnected");
+    }
+
+    function sendTap(clientX, clientY) {
+      if (!inputChannel || inputChannel.readyState !== "open") return;
+      const video = document.getElementById("remote");
+      const rect = video.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const x = (clientX - rect.left) / rect.width;
+      const y = (clientY - rect.top) / rect.height;
+      inputChannel.send(JSON.stringify({
+        type: "input",
+        command: "tap",
+        params: { x, y, button: "left" }
+      }));
+    }
+
+    const remoteVideo = document.getElementById("remote");
+    remoteVideo.addEventListener("click", (ev) => sendTap(ev.clientX, ev.clientY));
+    remoteVideo.addEventListener("touchend", (ev) => {
+      const t = ev.changedTouches && ev.changedTouches[0];
+      if (!t) return;
+      sendTap(t.clientX, t.clientY);
+      ev.preventDefault();
+    }, { passive: false });
+
+    (function boot() {
+      const p = new URLSearchParams(location.search);
+      const code = p.get("code") || "";
+      const token = p.get("token") || "";
+      if (!/^\d{6}$/.test(code) || token.length < 4) {
+        log("Missing/invalid code or token.");
+        return;
+      }
+      connect(code, token).catch((e) => log("Connect failed:", e.message));
+    })();
+  </script>
+</body>
+</html>

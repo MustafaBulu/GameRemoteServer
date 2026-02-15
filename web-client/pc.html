@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PC Broadcaster</title>
+  <style>
+    :root {
+      --bg: #0a1220;
+      --card: #121d31;
+      --border: #24344f;
+      --text: #ecf3ff;
+      --muted: #94a8c6;
+      --accent-1: #22d3ee;
+      --accent-2: #34d399;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 18px;
+      font-family: "Segoe UI", "Inter", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(800px 380px at 0% -10%, #1e293b, transparent 60%),
+        radial-gradient(700px 400px at 100% 0%, #083344, transparent 60%),
+        var(--bg);
+      min-height: 100vh;
+    }
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      display: grid;
+      gap: 12px;
+    }
+    .card {
+      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 12px;
+    }
+    .top {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .title { font-size: 22px; font-weight: 700; }
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 6px 10px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr auto;
+      gap: 8px;
+    }
+    input, button {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      font-size: 15px;
+      color: var(--text);
+      background: #0f1a2c;
+    }
+    button {
+      border: none;
+      color: #052015;
+      font-weight: 700;
+      cursor: pointer;
+      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+    }
+    video {
+      width: 100%;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: #060b15;
+      display: block;
+    }
+    .log {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.35;
+      white-space: pre-wrap;
+      background: #0a1120;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 96px;
+      max-height: 160px;
+      overflow: auto;
+      color: #d7e3fa;
+    }
+    @media (max-width: 680px) {
+      .controls { grid-template-columns: 1fr; }
+      .top { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="card">
+      <div class="top">
+        <div class="title">PC Broadcaster</div>
+        <div id="status" class="status">Idle</div>
+      </div>
+      <div class="controls">
+        <input id="code" value="123456" placeholder="Pair Code (6 digits)" />
+        <input id="token" value="ABCD1234" placeholder="Token" />
+        <button id="start">Start Broadcast</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <video id="preview" autoplay muted playsinline></video>
+    </section>
+
+    <section class="card">
+      <div id="log" class="log"></div>
+    </section>
+  </div>
+
+  <script>
+    const logEl = document.getElementById("log");
+    const statusEl = document.getElementById("status");
+    const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; logEl.scrollTop = logEl.scrollHeight; };
+    const setStatus = (s) => { statusEl.textContent = s; };
+
+    let ws;
+    let pc;
+    let inputChannel;
+    let code = "";
+    let token = "";
+    let agentWs = null;
+
+    function wsUrl() {
+      const scheme = location.protocol === "https:" ? "wss" : "ws";
+      return `${scheme}://${location.host}/ws`;
+    }
+
+    async function start() {
+      code = document.getElementById("code").value.trim();
+      token = document.getElementById("token").value.trim();
+      if (!/^\d{6}$/.test(code) || token.length < 4) return log("Invalid code/token.");
+
+      setStatus("Connecting...");
+      ws = new WebSocket(wsUrl());
+      ws.onopen = async () => {
+        log("WS connected.");
+        connectAgent();
+        ws.send(JSON.stringify({ type: "register", role: "pc", code, token }));
+        await initPeer();
+      };
+      ws.onmessage = async (ev) => {
+        const msg = JSON.parse(ev.data);
+        if (msg.type === "registered") {
+          setStatus("Registered");
+          log(`Registered token=${msg.token || token}`);
+        }
+        if (msg.type === "peer_connected") {
+          log("Android connected, creating offer...");
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          ws.send(JSON.stringify({ type: "signal", token, target: "android", data: { sdp: pc.localDescription } }));
+        }
+        if (msg.type === "signal" && msg.data?.sdp) {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
+          if (msg.data.sdp.type === "offer") {
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({ type: "signal", token, target: "android", data: { sdp: pc.localDescription } }));
+          }
+        }
+        if (msg.type === "signal" && msg.data?.candidate) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
+        }
+        if (msg.type === "error") {
+          log("ERROR:", msg.message);
+          setStatus("Error");
+        }
+      };
+      ws.onclose = () => setStatus("Disconnected");
+    }
+
+    async function initPeer() {
+      pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      pc.onicecandidate = (ev) => {
+        if (!ev.candidate) return;
+        ws.send(JSON.stringify({ type: "signal", token, target: "android", data: { candidate: ev.candidate } }));
+      };
+      pc.onconnectionstatechange = () => setStatus("Peer: " + pc.connectionState);
+
+      inputChannel = pc.createDataChannel("input");
+      inputChannel.onopen = () => log("Input channel open.");
+      inputChannel.onmessage = (ev) => {
+        log("Input:", ev.data);
+        if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+          agentWs.send(ev.data);
+        }
+      };
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: { ideal: 60, max: 60 }, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        audio: false
+      });
+      document.getElementById("preview").srcObject = stream;
+      stream.getTracks().forEach((t) => pc.addTrack(t, stream));
+      setStatus("Broadcasting");
+      log("Display stream started.");
+    }
+
+    document.getElementById("start").onclick = () => start().catch((e) => {
+      log("Start failed:", e.message);
+      setStatus("Error");
+    });
+
+    function connectAgent() {
+      try {
+        agentWs = new WebSocket("ws://127.0.0.1:40123");
+        agentWs.onopen = () => log("PC input agent connected.");
+        agentWs.onerror = () => log("PC input agent not reachable. Run: npm run pc:agent");
+      } catch {
+        log("PC input agent connect failed.");
+      }
+    }
+  </script>
+</body>
+</html>

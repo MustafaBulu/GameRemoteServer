@@ -12,6 +12,9 @@
         android:usesCleartextTraffic="true"
         android:theme="@style/Theme.GameRemoteAndroid">
         <activity
+            android:name=".WebRtcViewerActivity"
+            android:exported="false" />
+        <activity
             android:name=".MainActivity"
             android:exported="true">
             <intent-filter>
