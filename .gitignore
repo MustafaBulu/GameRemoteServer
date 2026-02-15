@@ -1,4 +1,8 @@
 node_modules/
+android-client/.gradle/
+android-client/build/
+android-client/app/build/
+pc-client/target/
 
 .idea/
 *.iml

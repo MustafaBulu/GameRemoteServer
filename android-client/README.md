@@ -6,6 +6,7 @@ This folder contains a simple Android client for `GameRemoteServer`.
 
 - Connects to the WebSocket server
 - Registers as `android` with a 6-digit pairing code
+- Uses a shared session token for secure pairing
 - Sends `input` packets (`up`, `down`, `left`, `right`)
 - Shows server responses in a log view
 
@@ -26,6 +27,6 @@ This folder contains a simple Android client for `GameRemoteServer`.
 1. Start Node.js server from repo root:
    - `npm install`
    - `npm start`
-2. In Android app, enter server URL and pairing code (example: `123456`).
+2. In Android app, enter server URL, pairing code (example: `123456`) and session token.
 3. Tap **Connect**.
 4. Press direction buttons to send input packets.

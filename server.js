@@ -2,8 +2,10 @@ const WebSocket = require("ws");
 
 const PORT = process.env.PORT || 37841;
 const wss = new WebSocket.Server({ port: PORT });
+const SESSION_TTL_MS = 10 * 60 * 1000;
+const CLEANUP_INTERVAL_MS = 30 * 1000;
 
-// code -> { pc: WebSocket | null, android: WebSocket | null }
+// code -> { pc: WebSocket | null, android: WebSocket | null, token: string, lastActivity: number }
 const sessions = new Map();
 // WebSocket -> { role: "pc" | "android", code: string }
 const clientMeta = new Map();
@@ -25,15 +27,53 @@ function normalizeCode(code) {
   return /^\d{6}$/.test(trimmed) ? trimmed : null;
 }
 
+function normalizeToken(token) {
+  if (typeof token !== "string") return null;
+  const trimmed = token.trim();
+  return /^[A-Za-z0-9_-]{4,32}$/.test(trimmed) ? trimmed : null;
+}
+
 function generateCode() {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
+function generateToken() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let out = "";
+  for (let i = 0; i < 8; i += 1) {
+    out += alphabet[Math.floor(Math.random() * alphabet.length)];
+  }
+  return out;
+}
+
+function maskCode(code) {
+  if (!code || code.length < 4) return "******";
+  return `${code.slice(0, 2)}**${code.slice(-2)}`;
+}
+
+function sanitizePacketForLog(msg) {
+  if (!msg || typeof msg !== "object") return {};
+  return {
+    type: msg.type || "unknown",
+    role: msg.role || undefined,
+    target: msg.target || undefined,
+    command: msg.command || undefined,
+    code: normalizeCode(msg.code) ? maskCode(msg.code) : undefined
+  };
+}
+
 function getOrCreateSession(code) {
   if (!sessions.has(code)) {
-    sessions.set(code, { pc: null, android: null });
+    sessions.set(code, { pc: null, android: null, token: "", lastActivity: Date.now() });
   }
   return sessions.get(code);
+}
+
+function markSessionActivity(code) {
+  const session = sessions.get(code);
+  if (session) {
+    session.lastActivity = Date.now();
+  }
 }
 
 function safeSend(ws, payload) {
@@ -50,7 +90,8 @@ function cleanupClient(ws) {
   const session = sessions.get(code);
   if (session && session[role] === ws) {
     session[role] = null;
-    log(`Disconnected ${role}`, `code=${code}`);
+    session.lastActivity = Date.now();
+    log(`Disconnected ${role}`, `code=${maskCode(code)}`);
 
     const otherRole = role === "pc" ? "android" : "pc";
     if (session[otherRole]) {
@@ -63,7 +104,7 @@ function cleanupClient(ws) {
 
     if (!session.pc && !session.android) {
       sessions.delete(code);
-      log("Session removed", `code=${code}`);
+      log("Session removed", `code=${maskCode(code)}`);
     }
   }
 
@@ -73,6 +114,7 @@ function cleanupClient(ws) {
 function handleRegister(ws, msg) {
   const role = normalizeRole(msg.role);
   let code = normalizeCode(msg.code);
+  const providedToken = normalizeToken(msg.token);
 
   if (!role) {
     safeSend(ws, { type: "error", message: "Invalid role. Use 'pc' or 'android'." });
@@ -89,6 +131,32 @@ function handleRegister(ws, msg) {
   }
 
   const session = getOrCreateSession(code);
+  const token = session.token || providedToken || generateToken();
+
+  if (role === "android" && !session.token) {
+    safeSend(ws, {
+      type: "error",
+      message: "PC must register first and share token."
+    });
+    return;
+  }
+
+  if (role === "pc" && session.token && (!providedToken || providedToken !== session.token)) {
+    safeSend(ws, {
+      type: "error",
+      message: "Invalid or missing token."
+    });
+    return;
+  }
+
+  if (role === "android" && (!providedToken || providedToken !== token)) {
+    safeSend(ws, {
+      type: "error",
+      message: "Invalid or missing token."
+    });
+    return;
+  }
+
   const current = session[role];
   if (current && current !== ws && current.readyState === WebSocket.OPEN) {
     safeSend(ws, {
@@ -100,6 +168,8 @@ function handleRegister(ws, msg) {
   }
 
   session[role] = ws;
+  session.token = token;
+  session.lastActivity = Date.now();
   clientMeta.set(ws, { role, code });
 
   const paired = Boolean(session.pc && session.android);
@@ -107,6 +177,7 @@ function handleRegister(ws, msg) {
     type: "registered",
     role,
     code,
+    token: role === "pc" ? token : undefined,
     paired
   });
 
@@ -119,7 +190,7 @@ function handleRegister(ws, msg) {
     });
   }
 
-  log("Registered client", `role=${role} code=${code} paired=${paired}`);
+  log("Registered client", `role=${role} code=${maskCode(code)} paired=${paired}`);
 }
 
 function handleInput(ws, msg) {
@@ -146,9 +217,15 @@ function handleInput(ws, msg) {
     return;
   }
 
+  const token = normalizeToken(msg.token);
   const session = sessions.get(code);
   if (!session || !session.pc || session.pc.readyState !== WebSocket.OPEN) {
     safeSend(ws, { type: "error", message: "PC is not connected.", code });
+    return;
+  }
+
+  if (!token || token !== session.token) {
+    safeSend(ws, { type: "error", message: "Invalid token." });
     return;
   }
 
@@ -163,12 +240,21 @@ function handleInput(ws, msg) {
 
   safeSend(session.pc, forwardPacket);
   safeSend(ws, { type: "input_ack", code, delivered: true });
-  log("Input forwarded", JSON.stringify(forwardPacket));
+  markSessionActivity(code);
+  log("Input forwarded", JSON.stringify({
+    type: forwardPacket.type,
+    code: maskCode(code),
+    command: forwardPacket.command,
+    target: forwardPacket.target
+  }));
 }
 
 function handleMessage(ws, rawData) {
   const text = rawData.toString();
-  log("Incoming packet", text);
+  if (text.length > 16384) {
+    safeSend(ws, { type: "error", message: "Packet too large." });
+    return;
+  }
 
   let msg;
   try {
@@ -182,6 +268,7 @@ function handleMessage(ws, rawData) {
     safeSend(ws, { type: "error", message: "Packet must include string 'type'." });
     return;
   }
+  log("Incoming packet", JSON.stringify(sanitizePacketForLog(msg)));
 
   if (msg.type === "register") {
     handleRegister(ws, msg);
@@ -198,11 +285,11 @@ function handleMessage(ws, rawData) {
 
 wss.on("connection", (ws, req) => {
   const ip = req.socket.remoteAddress || "unknown";
-  log("Client connected", `ip=${ip}`);
+  log("Client connected", `ip=${ip.replace(/\d+$/, "x")}`);
 
   safeSend(ws, {
     type: "hello",
-    message: "Send { type:'register', role:'pc|android', code:'123456' }"
+    message: "Send { type:'register', role:'pc|android', code:'123456', token:'ABCD1234' }"
   });
 
   ws.on("message", (data) => handleMessage(ws, data));
@@ -213,3 +300,13 @@ wss.on("connection", (ws, req) => {
 wss.on("listening", () => {
   log(`WebSocket server running on ws://localhost:${PORT}`);
 });
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [code, session] of sessions.entries()) {
+    if (!session.pc && !session.android && now - session.lastActivity > SESSION_TTL_MS) {
+      sessions.delete(code);
+      log("Session expired", `code=${maskCode(code)}`);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);

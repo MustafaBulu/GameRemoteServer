@@ -12,6 +12,7 @@ public class MainActivity extends AppCompatActivity implements WebSocketManager.
 
     private EditText serverUrlInput;
     private EditText codeInput;
+    private EditText tokenInput;
     private TextView statusText;
     private TextView logText;
 
@@ -25,6 +26,7 @@ public class MainActivity extends AppCompatActivity implements WebSocketManager.
 
         serverUrlInput = findViewById(R.id.etServerUrl);
         codeInput = findViewById(R.id.etCode);
+        tokenInput = findViewById(R.id.etToken);
         statusText = findViewById(R.id.tvStatus);
         logText = findViewById(R.id.tvLog);
         logText.setMovementMethod(new ScrollingMovementMethod());
@@ -54,9 +56,10 @@ public class MainActivity extends AppCompatActivity implements WebSocketManager.
     private void connectAndRegister() {
         String url = serverUrlInput.getText().toString().trim();
         String code = codeInput.getText().toString().trim();
+        String token = tokenInput.getText().toString().trim();
 
-        if (url.isEmpty() || code.length() != 6) {
-            appendLog("Enter a valid ws:// URL and 6-digit code.");
+        if (url.isEmpty() || code.length() != 6 || token.length() < 4) {
+            appendLog("Enter valid ws:// URL, 6-digit code and token.");
             return;
         }
 
@@ -70,7 +73,8 @@ public class MainActivity extends AppCompatActivity implements WebSocketManager.
             return;
         }
         String code = codeInput.getText().toString().trim();
-        webSocketManager.sendInput(code, direction);
+        String token = tokenInput.getText().toString().trim();
+        webSocketManager.sendInput(code, token, direction);
         appendLog("Sent input: " + direction);
     }
 
@@ -80,7 +84,8 @@ public class MainActivity extends AppCompatActivity implements WebSocketManager.
             connected = true;
             setStatus("Connected");
             String code = codeInput.getText().toString().trim();
-            webSocketManager.registerAndroid(code);
+            String token = tokenInput.getText().toString().trim();
+            webSocketManager.registerAndroid(code, token);
             appendLog("Connected and register sent.");
         });
     }

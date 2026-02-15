@@ -53,18 +53,19 @@ public class WebSocketManager {
         });
     }
 
-    public void registerAndroid(String code) {
+    public void registerAndroid(String code, String token) {
         try {
             JSONObject payload = new JSONObject();
             payload.put("type", "register");
             payload.put("role", "android");
             payload.put("code", code);
+            payload.put("token", token);
             send(payload);
         } catch (JSONException ignored) {
         }
     }
 
-    public void sendInput(String code, String direction) {
+    public void sendInput(String code, String token, String direction) {
         try {
             JSONObject params = new JSONObject();
             params.put("direction", direction);
@@ -72,6 +73,7 @@ public class WebSocketManager {
             JSONObject payload = new JSONObject();
             payload.put("type", "input");
             payload.put("code", code);
+            payload.put("token", token);
             payload.put("target", "pc");
             payload.put("command", "move");
             payload.put("params", params);
