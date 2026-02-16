@@ -1,71 +1,114 @@
 # GameRemoteServer (WebRTC Edition)
 
-This project is upgraded to a WebRTC-based architecture to target high frame rate screen streaming (up to 60 FPS depending on device/network/GPU).
+A WebRTC-based project for low-latency PC screen streaming to Android with remote control support.
 
-## What changed
+## Table of Contents
 
-- Replaced frame-by-frame base64 relay as main path with WebRTC video streaming.
-- Node server now works as:
-  - signaling server (`/ws`)
-  - static file server for web clients
-- Low-latency video: PC shares display with `getDisplayMedia`.
-- Input commands are sent from viewer to PC over WebRTC data channel.
+- Features
+- How It Works
+- Quick Start (Local)
+- Run on a Server (Same Wi-Fi Not Required)
+- Pairing
+- Performance Notes
+- Troubleshooting
+- Project Structure
+- Legacy Mode
 
-## Run
+## Features
+
+- WebRTC screen streaming (low latency, high FPS target)
+- Android-side click, scroll, and text input
+- WebSocket signaling (`/ws`)
+- Local Windows input agent (`npm run pc:agent`)
+- Quick screenshot button on Android viewer (left side camera button)
+
+## How It Works
+
+- `WebSocket`: used only for signaling and control messages
+- `WebRTC`: used for video/audio media transport
+- On PC, `getDisplayMedia(..., audio: true)` is used to capture system audio
+
+Note: Enable `Share audio / System audio` in the browser screen-share dialog for audio capture.
+
+## Quick Start (Local)
 
 ```bash
 npm install
 npm start
 ```
 
-For game input (click/arrow) on Windows PC, run local input agent in another terminal:
+Run the input agent on the Windows PC in a separate terminal:
 
 ```bash
 npm run pc:agent
 ```
 
-Server URLs:
+Default pages:
 
-- PC broadcaster page: `http://localhost:37841/pc.html`
-- Android viewer page: `http://localhost:37841/android.html`
-- Android app built-in viewer: open app and tap `Open WebRTC Viewer`
+- PC broadcaster: `http://localhost:37841/pc.html`
+- Android viewer: `http://localhost:37841/android.html`
 
-Legacy websocket relay server is still available:
+## Run on a Server (Same Wi-Fi Not Required)
+
+You can run this project on a public VPS/cloud server:
+
+- Host `webrtc-server.js` on a public server
+- Open `pc.html` and `android.html` via domain or public IP
+- Devices do not need to be on the same Wi-Fi network; internet access is enough
+
+Recommendations:
+
+- Use `HTTPS/WSS` in production
+- Open port `37841` in firewall/security group
+- Keep the input agent running on the Windows PC where the game is running
+
+## Pairing
+
+When the server starts, it generates pairing credentials once and prints them in the terminal:
+
+- `code`: 6-digit pairing code
+- `token`: shared secret
+
+Use the same `code + token` on both PC and Android clients.
+
+## Performance Notes
+
+Actual FPS depends on:
+
+- Hardware encoder availability
+- Network quality/latency
+- Browser and device limits
+- Shared screen resolution
+
+For better results:
+
+- Use Chrome/Edge on PC
+- Share a single window/monitor when possible
+- Reduce unnecessary background load
+
+## Troubleshooting
+
+- No audio:
+  - Check if `Share audio / System audio` is enabled in screen share
+  - Use a browser/share mode that supports audio capture
+- Connection issues:
+  - Verify `code/token` values are identical on both sides
+  - Verify server reachability and open port (`37841`)
+- Input not working:
+  - Make sure `npm run pc:agent` is running on the PC
+
+## Project Structure
+
+- `webrtc-server.js`: signaling + static web server
+- `web-client/pc.html`: PC broadcaster page
+- `web-client/android.html`: Android viewer page
+- `scripts/pc-input-agent.js`: Windows input bridge
+- `server.js`: legacy relay server
+
+## Legacy Mode
+
+To run the legacy websocket relay mode:
 
 ```bash
 npm run start:legacy
 ```
-
-## Pairing
-
-Use the same values on both pages:
-
-- `code`: 6-digit number (example `123456`)
-- `token`: shared secret (example `ABCD1234`)
-
-## Planned Features
-
-- Random code generation (used for device pairing)
-
-## 60 FPS notes
-
-WebRTC can reach 60 FPS, but actual FPS depends on:
-
-- hardware encoder availability
-- network quality
-- browser/device limits
-- selected screen resolution
-
-For better FPS:
-
-- use Chrome/Edge on PC
-- keep both devices on strong local Wi-Fi
-- stream a single monitor/window when possible
-
-## Files
-
-- `webrtc-server.js`: signaling + static web server
-- `web-client/pc.html`: PC broadcaster
-- `web-client/android.html`: Android viewer
-- `scripts/pc-input-agent.js`: local Windows input bridge (mouse/keyboard)
-- `server.js`: old relay server (legacy path)

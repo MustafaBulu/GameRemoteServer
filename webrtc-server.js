@@ -1,6 +1,7 @@
 const http = require("http");
 const path = require("path");
 const fs = require("fs");
+const crypto = require("crypto");
 const WebSocket = require("ws");
 
 const PORT = Number(process.env.PORT || 37841);
@@ -13,6 +14,10 @@ const MAX_SIGNAL_SIZE = 256 * 1024;
 const sessions = new Map();
 // ws -> { code: string, role: "pc"|"android" }
 const clientMeta = new Map();
+const activePair = {
+  code: String(crypto.randomInt(0, 1000000)).padStart(6, "0"),
+  token: crypto.randomBytes(4).toString("hex").toUpperCase()
+};
 
 function log(msg, extra = "") {
   console.log(`[${new Date().toISOString()}] ${msg}`, extra);
@@ -74,29 +79,19 @@ function cleanupClient(ws) {
 
 function handleRegister(ws, msg) {
   const role = normalizeRole(msg.role);
-  let code = normalizeCode(msg.code);
+  const code = normalizeCode(msg.code);
   const providedToken = normalizeToken(msg.token);
   if (!role) return safeSend(ws, { type: "error", message: "Invalid role." });
   if (!code) return safeSend(ws, { type: "error", message: "Invalid code." });
+  if (code !== activePair.code) return safeSend(ws, { type: "error", message: "Invalid code." });
+  if (!providedToken || providedToken !== activePair.token) {
+    return safeSend(ws, { type: "error", message: "Invalid token." });
+  }
 
   const prev = clientMeta.get(ws);
   if (prev) cleanupClient(ws);
 
   const s = getOrCreateSession(code);
-  const token = s.token || providedToken;
-  if (!token) return safeSend(ws, { type: "error", message: "Missing token." });
-
-  if (role === "android" && !s.token) {
-    return safeSend(ws, { type: "error", message: "PC must register first." });
-  }
-
-  if (role === "android" && (!providedToken || providedToken !== s.token)) {
-    return safeSend(ws, { type: "error", message: "Invalid token." });
-  }
-
-  if (role === "pc" && s.token && (!providedToken || providedToken !== s.token)) {
-    return safeSend(ws, { type: "error", message: "Invalid token." });
-  }
 
   const current = s[role];
   if (current && current !== ws && current.readyState === WebSocket.OPEN) {
@@ -106,12 +101,12 @@ function handleRegister(ws, msg) {
   }
 
   s[role] = ws;
-  s.token = token;
+  s.token = activePair.token;
   s.lastActivity = Date.now();
   clientMeta.set(ws, { role, code });
 
   const paired = Boolean(s.pc && s.android);
-  safeSend(ws, { type: "registered", role, code, token: role === "pc" ? token : undefined, paired });
+  safeSend(ws, { type: "registered", role, code, token: role === "pc" ? activePair.token : undefined, paired });
 
   const otherRole = role === "pc" ? "android" : "pc";
   safeSend(s[otherRole], { type: "peer_connected", role, code });
@@ -214,4 +209,7 @@ httpServer.listen(PORT, () => {
   log(`WebRTC signaling server: http://localhost:${PORT}`);
   log(`PC page: http://localhost:${PORT}/pc.html`);
   log(`Android page: http://localhost:${PORT}/android.html`);
+  log("Pairing generated (one-time per server start)");
+  log(`Pair code: ${activePair.code}`);
+  log(`Pair token: ${activePair.token}`);
 });

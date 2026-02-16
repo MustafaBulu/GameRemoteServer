@@ -92,6 +92,23 @@
       user-select: none;
       -webkit-user-select: none;
     }
+    .snap-btn {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      width: 52px;
+      height: 52px;
+      border-radius: 999px;
+      border: 1px solid #2a3b57;
+      background: rgba(10, 16, 28, 0.92);
+      color: #e5ecfb;
+      display: grid;
+      place-items: center;
+      z-index: 70;
+      font-size: 22px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     .kbd-toggle { right: 14px; font-size: 22px; }
     .kbd-panel {
       position: fixed;
@@ -135,6 +152,7 @@
   <audio id="remoteAudio" autoplay></audio>
   <div id="banner" class="banner">Baglaniyor...</div>
   <div id="toasts" class="toast-wrap"></div>
+  <button id="snapBtn" class="snap-btn" type="button" aria-label="Take screenshot">CAM</button>
   <button id="kbdToggle" class="kbd-toggle" type="button">&#9000;</button>
   <div id="kbdPanel" class="kbd-panel">
     <input id="kbdInput" type="text" placeholder="Yaz ve gonder" />
@@ -145,6 +163,7 @@
     const banner = document.getElementById("banner");
     const kbdPanel = document.getElementById("kbdPanel");
     const kbdInput = document.getElementById("kbdInput");
+    const snapBtn = document.getElementById("snapBtn");
     const remoteVideo = document.getElementById("remote");
     const remoteAudio = document.getElementById("remoteAudio");
     remoteVideo.muted = false;
@@ -539,6 +558,39 @@
       setTimeout(() => el.remove(), 450);
     }
 
+    function takeScreenshot() {
+      if (!remoteVideo.videoWidth || !remoteVideo.videoHeight) {
+        log("Screenshot failed: no video frame yet");
+        return;
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = remoteVideo.videoWidth;
+      canvas.height = remoteVideo.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        log("Screenshot failed: canvas not available");
+        return;
+      }
+      ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          log("Screenshot failed: empty image");
+          return;
+        }
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+        a.href = url;
+        const filename = `remote-full-${stamp}.png`;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+        log(`Saved: ${filename} (check Downloads / browser downloads)`);
+      }, "image/png");
+    }
+
     function toggleZoomAt(clientX, clientY) {
       const video = document.getElementById("remote");
       const rect = video.getBoundingClientRect();
@@ -693,6 +745,7 @@
       kbdPanel.style.display = open ? "none" : "grid";
       if (!open) setTimeout(() => kbdInput.focus(), 80);
     });
+    snapBtn.addEventListener("click", takeScreenshot);
     document.getElementById("kbdSend").addEventListener("click", () => {
       sendText(kbdInput.value);
       kbdInput.value = "";
