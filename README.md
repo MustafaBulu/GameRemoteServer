@@ -43,9 +43,9 @@ Use the same values on both pages:
 - `code`: 6-digit number (example `123456`)
 - `token`: shared secret (example `ABCD1234`)
 
-## Eklenecek Ozellikler
+## Planned Features
 
-- Rastgele kod uretme (cihaz eslesmesi/pairing icin kullanilacak)
+- Random code generation (used for device pairing)
 
 ## 60 FPS notes
 
