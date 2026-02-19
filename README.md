@@ -9,7 +9,7 @@
   <a href="https://www.docker.com/" title="Docker"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg" width="40" height="40" alt="Docker"/></a>
 </p>
 
-Backend service for low-latency PC screen streaming to Android with remote input using WebRTC signaling.
+Backend service for low-latency PC screen streaming to Android with remote input using WebRTC + WebSocket signaling.
 
 ## Screenshots
 
@@ -34,7 +34,7 @@ Backend service for low-latency PC screen streaming to Android with remote input
 ```text
 PC Browser (Broadcaster)          Android Web/App (Viewer)
           |                                  |
-          |========== Signaling =============|
+          |---- WebSocket Signaling (/ws) ---|
           |                                  |
           |===== WebRTC Media/Data Channel ===|
                          |
@@ -51,16 +51,18 @@ PC Browser (Broadcaster)          Android Web/App (Viewer)
 
 For internet access, deployment can include:
 - `nginx` for reverse proxy and TLS termination
+- `coturn` for TURN relay in restrictive NAT/mobile networks
 - optional Cloudflare tunnel profile
 
 ## Tech Stack
 
 - Node.js (`http`, `ws`) for signaling + static asset delivery
 - Browser WebRTC APIs (`RTCPeerConnection`, data channels)
+- WebSocket signaling endpoint: `/ws`
 - HTML/CSS/JS clients in `web-client/`
 - Android native wrapper (WebView + QR flow) in `android-client/`
 - Docker + Docker Compose for local/prod orchestration
-- Nginx for production-grade connectivity
+- Nginx + Coturn for production-grade connectivity
 
 ## How to Run
 
@@ -147,9 +149,34 @@ Example response:
 }
 ```
 
+## 2) WebSocket signaling registration
+
+Connect to:
+
+```text
+ws://localhost:37841/ws
+```
+
+Register as PC:
+
+```json
+{"type":"register","role":"pc","code":"395575","token":"5E3B9F15AABBCCDD"}
+```
+
+Forward SDP/ICE:
+
+```json
+{
+  "type":"signal",
+  "token":"5E3B9F15AABBCCDD",
+  "target":"android",
+  "data":{"sdp":{"type":"offer","sdp":"..."}}
+}
+```
+
 ## Design Decisions
 
-- Signaling/control is isolated from media transport, while media flows via WebRTC for lower latency.
+- WebSocket is used only for signaling/control, while media flows via WebRTC for lower latency.
 - Pair sessions are short-lived with timeout and rotation to reduce stale-session hijacking risk.
 - Pair `token` is generated on the PC client side and not exposed via `/api/pair`.
 - Server validates role/code/token/target on every signaling action.
@@ -159,7 +186,7 @@ Example response:
 ## Future Improvements
 
 - Add authenticated PC session ownership (admin secret or signed claims) for stronger pairing control.
-- Add rate limiting and abuse protection for signaling endpoints and `/api/pair`.
+- Add rate limiting and abuse protection for `/ws` and `/api/pair`.
 - Add structured metrics endpoint (Prometheus) for bitrate/RTT/session counts.
 - Add integration tests for reconnect, pair-expiry, and token-rotation flows.
 - Add CI pipeline for lint/build/test and container scanning.
