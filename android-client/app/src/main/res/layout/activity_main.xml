@@ -24,117 +24,52 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="High-FPS WebRTC viewer setup"
+            android:text="Join only via QR/deep link"
             android:textColor="#475569"
             android:textSize="15sp" />
 
-        <com.google.android.material.card.MaterialCardView
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            app:cardBackgroundColor="#FFFFFF"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="2dp"
-            app:strokeColor="#E2E8F0"
-            app:strokeWidth="1dp">
+            android:background="#FFFFFF"
+            android:orientation="vertical"
+            android:padding="16dp">
 
-            <LinearLayout
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="16dp">
+                android:text="How to connect"
+                android:textColor="#0F172A"
+                android:textSize="18sp"
+                android:textStyle="bold" />
 
-                <TextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Connection"
-                    android:textColor="#0F172A"
-                    android:textSize="18sp"
-                    android:textStyle="bold" />
+            <TextView
+                android:id="@+id/tvHint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:text="Scan the QR code from PC page or open shared link."
+                android:textColor="#475569"
+                android:textSize="14sp" />
 
-                <EditText
-                    android:id="@+id/etServerUrl"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:background="@android:drawable/edit_text"
-                    android:hint="ws://10.0.2.2:37841"
-                    android:inputType="textUri"
-                    android:padding="10dp"
-                    android:textColor="#0F172A"
-                    android:textColorHint="#64748B"
-                    android:text="ws://10.0.2.2:37841" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
-
-                    <EditText
-                        android:id="@+id/etCode"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:background="@android:drawable/edit_text"
-                        android:hint="123456"
-                        android:inputType="number"
-                        android:maxLength="6"
-                        android:padding="10dp"
-                        android:textColor="#0F172A"
-                        android:textColorHint="#64748B"
-                        android:text="123456" />
-
-                    <EditText
-                        android:id="@+id/etToken"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_marginStart="10dp"
-                        android:layout_weight="1"
-                        android:background="@android:drawable/edit_text"
-                        android:hint="ABCD1234"
-                        android:inputType="textNoSuggestions"
-                        android:padding="10dp"
-                        android:textColor="#0F172A"
-                        android:textColorHint="#64748B"
-                        android:text="ABCD1234" />
-                </LinearLayout>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnOpenWebRtc"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="14dp"
-                    android:text="Open WebRTC Viewer"
-                    app:cornerRadius="12dp"
-                    app:iconPadding="8dp" />
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnPresetEmulator"
-                    style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:text="Use Emulator URL (10.0.2.2)"
-                    app:cornerRadius="12dp" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnScanQr"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="14dp"
+                android:text="Scan QR"
+                app:cornerRadius="12dp" />
+        </LinearLayout>
 
         <TextView
             android:id="@+id/tvStatus"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="14dp"
-            android:text="Status: Ready"
+            android:text="Status: Waiting for QR/deep link..."
             android:textColor="#334155"
             android:textSize="14sp" />
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:text="Tip: For real phone, use ws://&lt;PC_IP&gt;:37841"
-            android:textColor="#64748B"
-            android:textSize="13sp" />
     </LinearLayout>
 </ScrollView>

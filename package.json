@@ -8,7 +8,11 @@
     "start:legacy": "node server.js",
     "pc:register": "node scripts/pc-register.js",
     "pc:agent": "node scripts/pc-input-agent.js",
-    "dev:all": "concurrently \"npm:start\" \"npm:pc:agent\""
+    "dev:all": "concurrently \"npm:start\" \"npm:pc:agent\"",
+    "up:all": "powershell -ExecutionPolicy Bypass -File scripts/start-all.ps1",
+    "down:all": "powershell -ExecutionPolicy Bypass -File scripts/stop-all.ps1",
+    "up:named": "powershell -ExecutionPolicy Bypass -File scripts/start-all-named.ps1",
+    "down:named": "powershell -ExecutionPolicy Bypass -File scripts/stop-all-named.ps1"
   },
   "dependencies": {
     "screenshot-desktop": "^1.15.3",

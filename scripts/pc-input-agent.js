@@ -3,6 +3,14 @@ const { spawn } = require("child_process");
 
 const AGENT_PORT = Number(process.env.AGENT_PORT || 40123);
 const HOST = "127.0.0.1";
+const MAX_EVENTS_PER_SEC = Number(process.env.INPUT_MAX_EVENTS_PER_SEC || 120);
+const MAX_TEXT_LEN = Number(process.env.INPUT_MAX_TEXT_LEN || 160);
+const ALLOWED_COMMANDS = new Set(["tap", "move", "key", "key_state", "text", "scroll"]);
+const ALLOWED_KEYS = new Set([
+  "up", "down", "left", "right", "enter", "backspace", "esc", "tab", "home", "end",
+  "f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
+  "ctrl", "shift", "alt", "space", "power", "fn"
+]);
 
 // Single persistent PowerShell worker to avoid per-click process spawn latency.
 const workerScript = `
@@ -191,6 +199,25 @@ function sendScroll(delta) {
   ps.stdin.write(`S ${d}\n`);
 }
 
+function normalizeKey(raw) {
+  const k = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  if (!k) return null;
+  if (ALLOWED_KEYS.has(k)) return k;
+  if (/^[a-z0-9]$/.test(k)) return k;
+  return null;
+}
+
+function isAllowedAction(raw) {
+  const a = typeof raw === "string" ? raw.trim().toLowerCase() : "";
+  return a === "down" || a === "up";
+}
+
+function sanitizeText(raw) {
+  const text = typeof raw === "string" ? raw.replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, "") : "";
+  if (!text.trim()) return null;
+  return text.slice(0, MAX_TEXT_LEN);
+}
+
 const wss = new WebSocket.Server({ host: HOST, port: AGENT_PORT });
 let lastTapTs = 0;
 let lastTapX = 0.5;
@@ -199,6 +226,19 @@ let pendingTapButton = "left";
 
 wss.on("connection", (ws) => {
   console.log("PC input agent: browser connected.");
+  let windowStart = Date.now();
+  let eventsInWindow = 0;
+
+  function allowByRate() {
+    const now = Date.now();
+    if (now - windowStart >= 1000) {
+      windowStart = now;
+      eventsInWindow = 0;
+    }
+    eventsInWindow += 1;
+    return eventsInWindow <= MAX_EVENTS_PER_SEC;
+  }
+
   ws.on("message", (data) => {
     let msg;
     try {
@@ -208,29 +248,46 @@ wss.on("connection", (ws) => {
     }
 
     if (msg?.type !== "input") return;
+    if (!ALLOWED_COMMANDS.has(msg.command)) return;
+    if (!allowByRate()) return;
+
     if (msg.command === "tap") {
+      const x = Number(msg?.params?.x);
+      const y = Number(msg?.params?.y);
+      if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       pendingTapButton = msg?.params?.button === "right" ? "right" : "left";
-      sendTap(Number(msg?.params?.x), Number(msg?.params?.y));
+      sendTap(x, y);
       return;
     }
     if (msg.command === "move") {
-      sendKey(msg?.params?.direction);
+      const k = normalizeKey(msg?.params?.direction);
+      if (!k) return;
+      sendKey(k);
       return;
     }
     if (msg.command === "key") {
-      sendKey(msg?.params?.key);
+      const k = normalizeKey(msg?.params?.key);
+      if (!k) return;
+      sendKey(k);
       return;
     }
     if (msg.command === "key_state") {
-      sendKeyState(msg?.params?.key, msg?.params?.action);
+      const k = normalizeKey(msg?.params?.key);
+      const action = msg?.params?.action;
+      if (!k || !isAllowedAction(action)) return;
+      sendKeyState(k, action);
       return;
     }
     if (msg.command === "text") {
-      sendText(msg?.params?.text);
+      const text = sanitizeText(msg?.params?.text);
+      if (!text) return;
+      sendText(text);
       return;
     }
     if (msg.command === "scroll") {
-      sendScroll(Number(msg?.params?.delta));
+      const delta = Math.max(-6, Math.min(6, Number(msg?.params?.delta)));
+      if (!Number.isFinite(delta)) return;
+      sendScroll(delta);
     }
   });
 });

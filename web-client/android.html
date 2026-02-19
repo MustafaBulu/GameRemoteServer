@@ -5,14 +5,36 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Remote Viewer</title>
   <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+    :root {
+      --ink: #e7f1ff;
+      --muted: #8ca9cd;
+      --stroke: rgba(151, 184, 222, 0.3);
+      --glass: rgba(7, 17, 31, 0.78);
+      --glass-strong: rgba(6, 15, 27, 0.9);
+      --warn: #f4b942;
+      --ok: #4df7a7;
+      --danger: #ff7c9b;
+      --shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+    }
+
     html, body {
       margin: 0;
       width: 100%;
       height: 100%;
       background: #000;
       overflow: hidden;
-      font-family: "Segoe UI", sans-serif;
+      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
     }
+
+    body {
+      background:
+        radial-gradient(720px 420px at 0% -12%, rgba(47, 116, 180, 0.42), transparent 60%),
+        radial-gradient(660px 400px at 100% -8%, rgba(26, 126, 72, 0.34), transparent 62%),
+        #050a13;
+    }
+
     #remote {
       width: 100vw;
       height: 100vh;
@@ -21,44 +43,72 @@
       display: block;
       touch-action: none;
     }
-    .banner {
+    .overlay-top {
       position: fixed;
-      top: 12px;
-      left: 12px;
-      right: 12px;
+      top: 10px;
+      left: 10px;
+      right: 10px;
       z-index: 55;
+      display: block;
+      pointer-events: none;
+    }
+    .banner {
       text-align: center;
       font-size: 13px;
-      padding: 8px 10px;
-      border-radius: 10px;
-      color: #e5ecfb;
-      background: rgba(10, 16, 28, 0.86);
-      border: 1px solid #2a3b57;
-      backdrop-filter: blur(4px);
+      letter-spacing: 0.01em;
+      padding: 9px 12px;
+      border-radius: 12px;
+      color: var(--ink);
+      background: var(--glass);
+      border: 1px solid var(--stroke);
+      backdrop-filter: blur(7px);
+      box-shadow: var(--shadow);
+      pointer-events: auto;
     }
     .banner.warn {
-      border-color: #92400e;
-      background: rgba(40, 19, 2, 0.86);
-      color: #fde68a;
+      border-color: rgba(180, 120, 24, 0.7);
+      background: rgba(42, 24, 7, 0.9);
+      color: #ffdfa3;
+    }
+    .netstats {
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      left: auto;
+      width: auto;
+      max-width: 68vw;
+      font-size: 11px;
+      line-height: 1.3;
+      border-radius: 10px;
+      border: 1px solid var(--stroke);
+      background: var(--glass);
+      color: #cae5ff;
+      padding: 5px 8px;
+      backdrop-filter: blur(7px);
+      font-family: "IBM Plex Mono", "Consolas", monospace;
+      box-shadow: var(--shadow);
+      pointer-events: auto;
+      opacity: 0.9;
     }
     .toast-wrap {
       position: fixed;
-      left: 12px;
-      right: 12px;
-      bottom: 16px;
+      left: 10px;
+      right: 10px;
+      bottom: 86px;
       display: grid;
       gap: 8px;
       pointer-events: none;
       z-index: 50;
     }
     .toast {
-      background: rgba(10, 16, 28, 0.9);
-      border: 1px solid #2a3b57;
-      border-radius: 10px;
+      background: var(--glass);
+      border: 1px solid var(--stroke);
+      border-radius: 12px;
       padding: 10px 12px;
-      color: #e5ecfb;
-      font-size: 13px;
-      backdrop-filter: blur(4px);
+      color: #dbeafd;
+      font-size: 12px;
+      backdrop-filter: blur(7px);
+      box-shadow: var(--shadow);
       animation: fadeOut 2.2s ease forwards;
     }
     .ripple {
@@ -74,65 +124,80 @@
       animation: ripple 420ms ease-out forwards;
     }
     .ripple.right {
-      border-color: rgba(251, 191, 36, 0.95);
-      background: rgba(251, 191, 36, 0.2);
+      border-color: rgba(244, 185, 66, 0.98);
+      background: rgba(244, 185, 66, 0.2);
+    }
+    .control-dock {
+      position: fixed;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      z-index: 70;
+      display: flex;
+      justify-content: flex-end;
+      pointer-events: none;
+    }
+    .right-stack {
+      display: grid;
+      gap: 8px;
+      justify-items: end;
     }
     .kbd-toggle {
-      position: fixed;
-      bottom: 14px;
       width: 52px;
       height: 52px;
       border-radius: 999px;
-      border: 1px solid #2a3b57;
-      background: rgba(10, 16, 28, 0.92);
-      color: #e5ecfb;
+      border: 1px solid var(--stroke);
+      background: var(--glass-strong);
+      color: var(--ink);
       display: grid;
       place-items: center;
-      z-index: 70;
+      box-shadow: var(--shadow);
+      pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
     }
     .snap-btn {
-      position: fixed;
-      left: 14px;
-      bottom: 14px;
       width: 52px;
       height: 52px;
       border-radius: 999px;
-      border: 1px solid #2a3b57;
-      background: rgba(10, 16, 28, 0.92);
-      color: #e5ecfb;
+      border: 1px solid var(--stroke);
+      background: var(--glass-strong);
+      color: var(--ink);
       display: grid;
       place-items: center;
-      z-index: 70;
       font-size: 22px;
+      font-weight: 600;
+      box-shadow: var(--shadow);
+      pointer-events: auto;
       user-select: none;
       -webkit-user-select: none;
     }
-    .kbd-toggle { right: 14px; font-size: 22px; }
+    .kbd-toggle { font-size: 22px; }
     .kbd-panel {
       position: fixed;
       left: 10px;
       right: 10px;
-      bottom: 76px;
+      bottom: 72px;
       z-index: 70;
       display: none;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
-      padding: 10px;
-      border-radius: 12px;
-      border: 1px solid #2a3b57;
-      background: rgba(10, 16, 28, 0.94);
-      backdrop-filter: blur(5px);
+      padding: 11px;
+      border-radius: 14px;
+      border: 1px solid var(--stroke);
+      background: rgba(8, 17, 30, 0.92);
+      backdrop-filter: blur(8px);
+      box-shadow: var(--shadow);
     }
     .kbd-panel input, .kbd-panel button {
       height: 42px;
       border-radius: 10px;
-      border: 1px solid #2a3b57;
-      background: #0f172a;
-      color: #e5ecfb;
+      border: 1px solid rgba(139, 174, 212, 0.3);
+      background: #0d1a2c;
+      color: var(--ink);
       padding: 0 10px;
-      font-size: 15px;
+      font-size: 14px;
+      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
     }
     .kbd-panel button { min-width: 62px; }
     #kbdInput { grid-column: span 4; }
@@ -145,15 +210,48 @@
       80% { opacity: 1; }
       100% { opacity: 0; transform: translateY(4px); }
     }
+    @media (min-width: 900px) {
+      .overlay-top {
+        left: 14px;
+        right: auto;
+        width: min(420px, calc(100vw - 28px));
+      }
+      .netstats {
+        top: 14px;
+        right: 14px;
+        max-width: 420px;
+      }
+      .control-dock {
+        left: 14px;
+        right: 14px;
+      }
+      .kbd-panel {
+        width: min(520px, calc(100vw - 28px));
+        right: 14px;
+        left: auto;
+      }
+      .toast-wrap {
+        width: min(420px, calc(100vw - 28px));
+        right: 14px;
+        left: auto;
+      }
+    }
   </style>
 </head>
 <body>
   <video id="remote" autoplay playsinline></video>
   <audio id="remoteAudio" autoplay></audio>
-  <div id="banner" class="banner">Baglaniyor...</div>
+  <div class="overlay-top">
+    <div id="banner" class="banner">Baglaniyor...</div>
+    <div id="netStats" class="netstats">bitrate=- | fps=- | rtt=- | loss=-</div>
+  </div>
   <div id="toasts" class="toast-wrap"></div>
-  <button id="snapBtn" class="snap-btn" type="button" aria-label="Take screenshot">CAM</button>
-  <button id="kbdToggle" class="kbd-toggle" type="button">&#9000;</button>
+  <div class="control-dock">
+    <div class="right-stack">
+      <button id="snapBtn" class="snap-btn" type="button" aria-label="Take screenshot">&#128247;</button>
+      <button id="kbdToggle" class="kbd-toggle" type="button">&#9000;</button>
+    </div>
+  </div>
   <div id="kbdPanel" class="kbd-panel">
     <input id="kbdInput" type="text" placeholder="Yaz ve gonder" />
     <button id="kbdSend" type="button">Send</button>
@@ -164,6 +262,7 @@
     const kbdPanel = document.getElementById("kbdPanel");
     const kbdInput = document.getElementById("kbdInput");
     const snapBtn = document.getElementById("snapBtn");
+    const netStatsEl = document.getElementById("netStats");
     const remoteVideo = document.getElementById("remote");
     const remoteAudio = document.getElementById("remoteAudio");
     remoteVideo.muted = false;
@@ -212,6 +311,10 @@
     let pendingCandidates = [];
     let noTrackTimer = null;
     let trackReceived = false;
+    let statsTimer = null;
+    let lastVideoBytes = null;
+    let lastStatsTs = null;
+    let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
 
     let lastTapTs = 0;
     let lastTapX = 0;
@@ -227,6 +330,54 @@
     function wsUrl() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
       return `${scheme}://${location.host}/ws`;
+    }
+
+    async function loadRuntimeConfig() {
+      try {
+        const res = await fetch("/api/pair", { cache: "no-store" });
+        if (!res.ok) return;
+        const payload = await res.json();
+        if (Array.isArray(payload.iceServers) && payload.iceServers.length) {
+          iceServers = payload.iceServers;
+        }
+      } catch {}
+    }
+
+    function tryOpenNativeApp(code, token) {
+      const ua = navigator.userAgent || "";
+      const isAndroid = /Android/i.test(ua);
+      if (!isAndroid) return;
+      const p = new URLSearchParams(location.search);
+      if (p.get("native") === "0") return;
+      const wantsNative = window.confirm("Uygulama yüklüyse uygulamada acilsin mi?");
+      if (!wantsNative) {
+        log("Web viewer secildi.");
+        return;
+      }
+      const ws = wsUrl();
+      const deepLink = `gameremote://connect?ws=${encodeURIComponent(ws)}&code=${encodeURIComponent(code)}&token=${encodeURIComponent(token)}`;
+      const fallbackUrl = location.href + (location.search ? "&" : "?") + "native=0";
+
+      log("Android app detected, trying native redirect...");
+      let switched = false;
+      const onHidden = () => { switched = true; };
+      document.addEventListener("visibilitychange", onHidden, { once: true });
+      setTimeout(() => {
+        if (!switched && !document.hidden) {
+          log("Native app not opened, continuing in web viewer.");
+          location.replace(fallbackUrl);
+        }
+      }, 1100);
+
+      // Avoid breaking the page with ERR_UNKNOWN_URL_SCHEME in browsers
+      // that don't support direct top-level navigation for custom schemes.
+      const iframe = document.createElement("iframe");
+      iframe.style.display = "none";
+      iframe.src = deepLink;
+      document.body.appendChild(iframe);
+      setTimeout(() => {
+        try { iframe.remove(); } catch {}
+      }, 900);
     }
 
     function clearReconnectTimer() {
@@ -255,6 +406,7 @@
     function cleanupConnection() {
       debug("cleanupConnection");
       clearNoTrackTimer();
+      stopStatsLoop();
       try {
         if (ws) {
           ws.onclose = null;
@@ -307,9 +459,7 @@
       connectToken = token;
       setBanner("Baglaniyor...");
 
-      pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-      });
+      pc = new RTCPeerConnection({ iceServers });
       debug("pc created");
 
       pc.ontrack = (ev) => {
@@ -337,6 +487,7 @@
           log("No audio track received from PC");
         }
         trackReceived = true;
+        startStatsLoop();
         clearNoTrackTimer();
         clearReconnectTimer();
         reconnectAttempt = 0;
@@ -476,7 +627,7 @@
           }
           if (m.toLowerCase().includes("invalid token") || m.toLowerCase().includes("invalid code")) {
             stoppedByAuthError = true;
-            setBanner("Baglanti hatasi: code/token gecersiz", true);
+            setBanner("Oturum gecersiz veya sona erdi. Yeni QR/link alin.", true);
           }
         }
       };
@@ -498,6 +649,66 @@
         debug("ws.onerror");
         scheduleReconnect("Signaling error");
       };
+    }
+
+    function stopStatsLoop() {
+      if (statsTimer) {
+        clearInterval(statsTimer);
+        statsTimer = null;
+      }
+      lastVideoBytes = null;
+      lastStatsTs = null;
+      netStatsEl.textContent = "bitrate=- | fps=- | rtt=- | loss=-";
+    }
+
+    function startStatsLoop() {
+      if (statsTimer) return;
+      statsTimer = setInterval(async () => {
+        if (!pc || pc.connectionState === "closed") return;
+        try {
+          const stats = await pc.getStats();
+          let inVideo = null;
+          let remoteOutVideo = null;
+          let pair = null;
+          stats.forEach((r) => {
+            if (r.type === "inbound-rtp" && r.kind === "video" && !r.isRemote) inVideo = r;
+            if (r.type === "remote-outbound-rtp" && r.kind === "video") remoteOutVideo = r;
+            if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
+          });
+
+          let bitrateText = "-";
+          let fpsText = "-";
+          let rttText = "-";
+          let lossText = "-";
+
+          const now = Date.now();
+          if (inVideo && typeof inVideo.bytesReceived === "number") {
+            if (lastVideoBytes != null && lastStatsTs != null) {
+              const dt = (now - lastStatsTs) / 1000;
+              if (dt > 0) {
+                const bps = ((inVideo.bytesReceived - lastVideoBytes) * 8) / dt;
+                bitrateText = `${Math.max(0, bps / 1000).toFixed(0)}kbps`;
+              }
+            }
+            lastVideoBytes = inVideo.bytesReceived;
+            lastStatsTs = now;
+            if (Number.isFinite(inVideo.framesPerSecond)) {
+              fpsText = `${inVideo.framesPerSecond.toFixed(1)}`;
+            }
+          }
+
+          const rtt = (pair && pair.currentRoundTripTime) || (remoteOutVideo && remoteOutVideo.roundTripTime);
+          if (Number.isFinite(rtt)) rttText = `${Math.round(rtt * 1000)}ms`;
+
+          if (inVideo && Number.isFinite(inVideo.packetsLost) && Number.isFinite(inVideo.packetsReceived)) {
+            const total = inVideo.packetsReceived + inVideo.packetsLost;
+            const lossPct = total > 0 ? (inVideo.packetsLost / total) * 100 : 0;
+            lossText = `${lossPct.toFixed(1)}%`;
+          }
+
+          netStatsEl.textContent = `bitrate=${bitrateText} | fps=${fpsText} | rtt=${rttText} | loss=${lossText}`;
+        } catch {}
+      }, 2000);
     }
 
     function mapPointToVideo(clientX, clientY) {
@@ -572,6 +783,16 @@
         return;
       }
       ctx.drawImage(remoteVideo, 0, 0, canvas.width, canvas.height);
+      const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `remote-full-${stamp}.png`;
+      const dataUrl = canvas.toDataURL("image/png");
+      if (window.AndroidBridge && typeof window.AndroidBridge.saveImage === "function") {
+        try {
+          window.AndroidBridge.saveImage(dataUrl, filename);
+          log(`Saved: ${filename} (Downloads)`);
+          return;
+        } catch {}
+      }
       canvas.toBlob((blob) => {
         if (!blob) {
           log("Screenshot failed: empty image");
@@ -579,9 +800,7 @@
         }
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        const stamp = new Date().toISOString().replace(/[:.]/g, "-");
         a.href = url;
-        const filename = `remote-full-${stamp}.png`;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
@@ -784,7 +1003,10 @@
         setBanner("Gecersiz code/token", true);
         return;
       }
-      connect(code, token).catch((e) => log("Connect failed:", e.message));
+      tryOpenNativeApp(code, token);
+      loadRuntimeConfig().finally(() => {
+        connect(code, token).catch((e) => log("Connect failed:", e.message));
+      });
     })();
 
     window.addEventListener("pagehide", () => {

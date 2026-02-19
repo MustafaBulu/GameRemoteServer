@@ -1,0 +1,68 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "37841"
+      PAIR_WAIT_TIMEOUT_MS: "180000"
+      PUBLIC_BASE_URL: "${PUBLIC_BASE_URL:-}"
+      STUN_URLS: "${STUN_URLS:-stun:stun.l.google.com:19302}"
+      TURN_URL: "${TURN_URL:-}"
+      TURN_USERNAME: "${TURN_USERNAME:-}"
+      TURN_PASSWORD: "${TURN_PASSWORD:-}"
+      ICE_SERVERS_JSON: "${ICE_SERVERS_JSON:-}"
+    ports:
+      - "37841:37841"
+
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://app:37841
+    depends_on:
+      - app
+    profiles:
+      - quick_tunnel
+
+  tunnel_named:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel run --token ${TUNNEL_TOKEN}
+    depends_on:
+      - app
+    profiles:
+      - named_tunnel
+
+  coturn:
+    image: coturn/coturn:4.6.3-r2
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        cat >/tmp/turnserver.conf <<EOF
+        listening-port=3478
+        tls-listening-port=5349
+        min-port=49160
+        max-port=49200
+        listening-ip=0.0.0.0
+        external-ip=${TURN_EXTERNAL_IP}
+        fingerprint
+        lt-cred-mech
+        realm=${TURN_REALM}
+        user=${TURN_USERNAME}:${TURN_PASSWORD}
+        no-multicast-peers
+        no-cli
+        simple-log
+        no-software-attribute
+        EOF
+        exec turnserver -c /tmp/turnserver.conf
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+      - "5349:5349"
+      - "5349:5349/udp"
+      - "49160-49200:49160-49200/udp"
+    profiles:
+      - turn

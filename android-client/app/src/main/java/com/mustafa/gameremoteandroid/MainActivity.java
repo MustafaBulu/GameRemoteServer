@@ -1,64 +1,80 @@
 package com.mustafa.gameremoteandroid;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.net.Uri;
 import android.os.Bundle;
-import android.widget.EditText;
 import android.widget.TextView;
 
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.ContextCompat;
 
 import com.google.android.material.button.MaterialButton;
+import com.journeyapps.barcodescanner.ScanContract;
+import com.journeyapps.barcodescanner.ScanOptions;
 
 public class MainActivity extends AppCompatActivity {
 
-    private static final String PREFS = "game_remote_prefs";
-    private static final String KEY_WS_URL = "ws_url";
-    private static final String KEY_CODE = "pair_code";
-    private static final String KEY_TOKEN = "pair_token";
-
-    private static final String DEFAULT_WS_URL = "ws://10.0.2.2:37841";
-    private static final String DEFAULT_CODE = "123456";
-    private static final String DEFAULT_TOKEN = "ABCD1234";
-
-    private EditText serverUrlInput;
-    private EditText codeInput;
-    private EditText tokenInput;
     private TextView statusText;
+    private TextView hintText;
+
+    private final ActivityResultLauncher<ScanOptions> qrScanLauncher =
+        registerForActivityResult(new ScanContract(), result -> {
+            String raw = result != null ? result.getContents() : null;
+            if (raw == null || raw.trim().isEmpty()) {
+                statusText.setText("Status: QR scan canceled.");
+                return;
+            }
+            ConnectionParams params = parseConnectionUri(Uri.parse(raw.trim()));
+            if (params == null) {
+                statusText.setText("Status: Invalid QR content.");
+                hintText.setText("Use QR from PC page.");
+                return;
+            }
+            statusText.setText("Status: QR received.");
+            hintText.setText("Connecting...");
+            openWebRtcViewer(params.wsUrl, params.code, params.token);
+        });
+
+    private final ActivityResultLauncher<String> cameraPermissionLauncher =
+        registerForActivityResult(new ActivityResultContracts.RequestPermission(), granted -> {
+            if (Boolean.TRUE.equals(granted)) {
+                launchQrScanner();
+            } else {
+                statusText.setText("Status: Camera permission denied.");
+            }
+        });
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        serverUrlInput = findViewById(R.id.etServerUrl);
-        codeInput = findViewById(R.id.etCode);
-        tokenInput = findViewById(R.id.etToken);
         statusText = findViewById(R.id.tvStatus);
+        hintText = findViewById(R.id.tvHint);
+        MaterialButton scanQrButton = findViewById(R.id.btnScanQr);
 
-        MaterialButton openViewerButton = findViewById(R.id.btnOpenWebRtc);
-        MaterialButton emulatorPresetButton = findViewById(R.id.btnPresetEmulator);
-
-        preloadDefaults();
-        openViewerButton.setOnClickListener(v -> openWebRtcViewer());
-        emulatorPresetButton.setOnClickListener(v -> serverUrlInput.setText("ws://10.0.2.2:37841"));
+        statusText.setText("Status: Waiting for QR/deep link...");
+        hintText.setText("Open via QR or direct link from PC page.");
+        scanQrButton.setOnClickListener(v -> startQrFlow());
+        applyDeepLinkIntent(getIntent(), true);
     }
 
-    private void openWebRtcViewer() {
-        String wsUrl = serverUrlInput.getText().toString().trim();
-        String code = codeInput.getText().toString().trim();
-        String token = tokenInput.getText().toString().trim();
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        applyDeepLinkIntent(intent, true);
+    }
 
+    private void openWebRtcViewer(String wsUrl, String code, String token) {
         if (wsUrl.isEmpty() || !code.matches("^\\d{6}$") || token.length() < 4) {
-            statusText.setText("Status: Enter valid ws:// URL, 6-digit code, token.");
+            statusText.setText("Status: Invalid link parameters.");
             return;
         }
-
-        getSharedPreferences(PREFS, MODE_PRIVATE)
-            .edit()
-            .putString(KEY_WS_URL, wsUrl)
-            .putString(KEY_CODE, code)
-            .putString(KEY_TOKEN, token)
-            .apply();
 
         Intent intent = new Intent(this, WebRtcViewerActivity.class);
         intent.putExtra("ws_url", wsUrl);
@@ -68,13 +84,80 @@ public class MainActivity extends AppCompatActivity {
         statusText.setText("Status: Opening native WebRTC viewer...");
     }
 
-    private void preloadDefaults() {
-        String ws = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_WS_URL, DEFAULT_WS_URL);
-        String code = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_CODE, DEFAULT_CODE);
-        String token = getSharedPreferences(PREFS, MODE_PRIVATE).getString(KEY_TOKEN, DEFAULT_TOKEN);
+    private void startQrFlow() {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchQrScanner();
+            return;
+        }
+        cameraPermissionLauncher.launch(Manifest.permission.CAMERA);
+    }
 
-        serverUrlInput.setText(ws);
-        codeInput.setText(code);
-        tokenInput.setText(token);
+    private void launchQrScanner() {
+        ScanOptions options = new ScanOptions();
+        options.setDesiredBarcodeFormats(ScanOptions.QR_CODE);
+        options.setPrompt("Scan pairing QR");
+        options.setBeepEnabled(false);
+        options.setOrientationLocked(false);
+        qrScanLauncher.launch(options);
+    }
+
+    private void applyDeepLinkIntent(Intent intent, boolean autoOpen) {
+        if (intent == null) return;
+        Uri data = intent.getData();
+        if (data == null) return;
+        ConnectionParams params = parseConnectionUri(data);
+        if (params == null) {
+            statusText.setText("Status: Invalid deep link parameters.");
+            return;
+        }
+
+        statusText.setText("Status: Deep link received.");
+        hintText.setText("Connecting...");
+
+        if (autoOpen) {
+            openWebRtcViewer(params.wsUrl, params.code, params.token);
+        }
+    }
+
+    private ConnectionParams parseConnectionUri(Uri data) {
+        if (data == null) return null;
+        String code = trimOrEmpty(data.getQueryParameter("code"));
+        String token = trimOrEmpty(data.getQueryParameter("token"));
+        if (!code.matches("^\\d{6}$") || token.length() < 4) return null;
+
+        String scheme = trimOrEmpty(data.getScheme()).toLowerCase();
+        String ws = trimOrEmpty(data.getQueryParameter("ws"));
+
+        if ("gameremote".equals(scheme) && "connect".equalsIgnoreCase(trimOrEmpty(data.getHost()))) {
+            if (ws.isEmpty()) return null;
+            return new ConnectionParams(ws, code, token);
+        }
+
+        if ("http".equals(scheme) || "https".equals(scheme)) {
+            String host = trimOrEmpty(data.getHost());
+            if (host.isEmpty()) return null;
+            String wsScheme = "https".equals(scheme) ? "wss" : "ws";
+            int port = data.getPort();
+            String wsUrl = port > 0 ? wsScheme + "://" + host + ":" + port + "/ws" : wsScheme + "://" + host + "/ws";
+            return new ConnectionParams(wsUrl, code, token);
+        }
+
+        return null;
+    }
+
+    private String trimOrEmpty(String s) {
+        return s == null ? "" : s.trim();
+    }
+
+    private static final class ConnectionParams {
+        final String wsUrl;
+        final String code;
+        final String token;
+
+        ConnectionParams(String wsUrl, String code, String token) {
+            this.wsUrl = wsUrl;
+            this.code = code;
+            this.token = token;
+        }
     }
 }

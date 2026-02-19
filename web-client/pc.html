@@ -5,121 +5,376 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PC Broadcaster</title>
   <style>
+    @import url("https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
     :root {
-      --bg: #0a1220;
-      --card: #121d31;
-      --border: #24344f;
-      --text: #ecf3ff;
-      --muted: #94a8c6;
-      --accent-1: #22d3ee;
-      --accent-2: #34d399;
+      --bg: #081018;
+      --bg-soft: #101b2a;
+      --card: rgba(9, 19, 34, 0.76);
+      --card-strong: rgba(12, 24, 44, 0.88);
+      --border: rgba(156, 188, 230, 0.2);
+      --text: #ebf4ff;
+      --muted: #8ea8c8;
+      --accent-a: #00d4ff;
+      --accent-b: #7cff67;
+      --danger: #ff6b88;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
     }
+
     * { box-sizing: border-box; }
+
     body {
       margin: 0;
-      padding: 18px;
-      font-family: "Segoe UI", "Inter", sans-serif;
+      padding: 28px 18px;
+      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
       color: var(--text);
       background:
-        radial-gradient(800px 380px at 0% -10%, #1e293b, transparent 60%),
-        radial-gradient(700px 400px at 100% 0%, #083344, transparent 60%),
+        radial-gradient(900px 480px at -8% -14%, #1f5b83, transparent 58%),
+        radial-gradient(760px 460px at 108% -4%, #0f4f34, transparent 62%),
+        linear-gradient(180deg, #0d1522 0%, #080f18 46%, #060c14 100%),
         var(--bg);
       min-height: 100vh;
     }
+
     .wrap {
-      max-width: 980px;
+      max-width: 1060px;
       margin: 0 auto;
       display: grid;
-      gap: 12px;
+      gap: 16px;
     }
+
     .card {
-      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01));
+      position: relative;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--card), var(--card-strong));
       border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: var(--shadow);
+      backdrop-filter: blur(7px);
     }
+
+    .card::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(120deg, rgba(255, 255, 255, 0.06), transparent 42%);
+      opacity: 0.7;
+    }
+
+    .hero {
+      display: grid;
+      gap: 12px;
+      animation: rise 500ms ease;
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: #9fc2e5;
+      opacity: 0.9;
+    }
+
     .top {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 8px;
+      gap: 12px;
     }
-    .title { font-size: 22px; font-weight: 700; }
-    .status {
-      font-size: 12px;
+
+    .title {
+      margin: 0;
+      font-size: clamp(24px, 4.4vw, 36px);
+      line-height: 1.05;
+      letter-spacing: 0.01em;
+    }
+
+    .sub {
+      margin: 0;
       color: var(--muted);
-      border: 1px solid var(--border);
-      border-radius: 999px;
-      padding: 6px 10px;
+      font-size: 14px;
     }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #dff2ff;
+      border: 1px solid rgba(146, 174, 208, 0.44);
+      border-radius: 999px;
+      padding: 7px 12px;
+      background: rgba(9, 24, 40, 0.84);
+      min-width: 118px;
+      justify-content: center;
+    }
+
+    .status::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #9fb7d4;
+      box-shadow: 0 0 0 0 rgba(159, 183, 212, 0.5);
+    }
+
+    .status[data-state="connecting"]::before {
+      background: #f7c948;
+      box-shadow: 0 0 0 4px rgba(247, 201, 72, 0.18);
+    }
+
+    .status[data-state="live"]::before {
+      background: #48ff8b;
+      box-shadow: 0 0 0 4px rgba(72, 255, 139, 0.18);
+    }
+
+    .status[data-state="error"]::before {
+      background: var(--danger);
+      box-shadow: 0 0 0 4px rgba(255, 107, 136, 0.2);
+    }
+
     .controls {
       display: grid;
-      grid-template-columns: 1fr 1fr auto;
+      grid-template-columns: 1fr;
+      gap: 10px;
+    }
+
+    .pair {
+      margin-top: 10px;
+    }
+
+    .pair-actions {
+      margin-top: 0;
+      display: grid;
+      grid-template-columns: 1fr;
       gap: 8px;
     }
-    input, button {
-      width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      padding: 10px 12px;
-      font-size: 15px;
-      color: var(--text);
-      background: #0f1a2c;
-    }
+
+    .hidden { display: none; }
+
     button {
+      width: 100%;
+      border-radius: 12px;
       border: none;
-      color: #052015;
+      padding: 14px 16px;
+      color: #06131b;
+      font-family: "Space Grotesk", "Trebuchet MS", sans-serif;
+      font-size: 15px;
       font-weight: 700;
       cursor: pointer;
-      background: linear-gradient(135deg, var(--accent-1), var(--accent-2));
+      background: linear-gradient(125deg, var(--accent-a), var(--accent-b));
+      transition: transform 140ms ease, filter 160ms ease, box-shadow 160ms ease;
+      box-shadow: 0 16px 30px rgba(0, 212, 255, 0.22);
     }
+
+    button:hover {
+      transform: translateY(-1px);
+      filter: brightness(1.06);
+    }
+
+    button:active {
+      transform: translateY(1px) scale(0.997);
+    }
+
+    button:disabled {
+      opacity: 0.62;
+      cursor: wait;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(13, 30, 51, 0.92);
+      color: #d2e8ff;
+      border: 1px solid rgba(159, 195, 236, 0.28);
+      box-shadow: none;
+      padding: 10px 12px;
+      font-size: 13px;
+    }
+
+    .btn-secondary:hover {
+      filter: none;
+      background: rgba(19, 39, 64, 0.95);
+      transform: translateY(-1px);
+    }
+
+    .pair-share {
+      margin-top: 10px;
+      display: grid;
+      grid-template-columns: 168px 1fr;
+      gap: 10px;
+      align-items: center;
+      border: 1px solid rgba(159, 195, 236, 0.2);
+      border-radius: 12px;
+      padding: 10px;
+      background: rgba(7, 17, 31, 0.7);
+    }
+
+    .pair-share img {
+      width: 168px;
+      height: 168px;
+      border-radius: 10px;
+      border: 1px solid rgba(159, 195, 236, 0.22);
+      background: #0a1728;
+    }
+
+    .pair-link {
+      display: none;
+    }
+
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .metric {
+      border: 1px solid rgba(146, 174, 208, 0.25);
+      background: rgba(6, 16, 30, 0.72);
+      border-radius: 10px;
+      padding: 8px 9px;
+    }
+
+    .metric .k {
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      margin-bottom: 4px;
+    }
+
+    .metric .v {
+      font-family: "IBM Plex Mono", "Consolas", monospace;
+      font-size: 13px;
+    }
+
+    .media-card {
+      display: grid;
+      gap: 10px;
+    }
+
+    .card-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .chip {
+      border-radius: 999px;
+      border: 1px solid rgba(146, 174, 208, 0.35);
+      padding: 5px 9px;
+      font-size: 11px;
+      color: #c8d9ef;
+      background: rgba(9, 19, 32, 0.76);
+    }
+
     video {
       width: 100%;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: #060b15;
+      border-radius: 12px;
+      border: 1px solid rgba(155, 188, 229, 0.22);
+      background: #050a12;
       display: block;
+      aspect-ratio: 16 / 9;
+      box-shadow: inset 0 0 0 1px rgba(160, 193, 236, 0.08);
     }
-    .log {
-      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+    .log-title {
+      margin: 0 0 10px;
       font-size: 12px;
-      line-height: 1.35;
-      white-space: pre-wrap;
-      background: #0a1120;
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      padding: 10px;
-      min-height: 96px;
-      max-height: 160px;
-      overflow: auto;
-      color: #d7e3fa;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--muted);
     }
+
+    .log {
+      font-family: "IBM Plex Mono", "Consolas", monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      white-space: pre-wrap;
+      background: linear-gradient(180deg, rgba(8, 17, 30, 0.96), rgba(6, 14, 24, 0.96));
+      border: 1px solid rgba(145, 174, 207, 0.22);
+      border-radius: 12px;
+      padding: 12px;
+      min-height: 110px;
+      max-height: 180px;
+      overflow: auto;
+      color: #d6e6ff;
+      box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.2);
+    }
+
+    @keyframes rise {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
     @media (max-width: 680px) {
-      .controls { grid-template-columns: 1fr; }
+      body { padding: 16px 12px; }
       .top { flex-direction: column; align-items: flex-start; }
+      .status { min-width: 0; }
+      .pair { grid-template-columns: 1fr; }
+      .pair-actions { grid-template-columns: 1fr; }
+      .pair-share { grid-template-columns: 1fr; }
+      .pair-share img { width: 100%; height: auto; aspect-ratio: 1 / 1; }
+      .metrics { grid-template-columns: 1fr 1fr; }
     }
   </style>
 </head>
 <body>
   <div class="wrap">
-    <section class="card">
+    <section class="card hero">
+      <div class="eyebrow">Broadcast Console</div>
       <div class="top">
-        <div class="title">PC Broadcaster</div>
-        <div id="status" class="status">Idle</div>
+        <div>
+          <h1 class="title">PC Broadcaster</h1>
+          <p class="sub">Start the stream, share pair code/token, and connect from phone.</p>
+        </div>
+        <div id="status" class="status" data-state="idle">Idle</div>
       </div>
       <div class="controls">
-        <input id="code" value="123456" placeholder="Pair Code (6 digits)" />
-        <input id="token" value="ABCD1234" placeholder="Token" />
         <button id="start">Start Broadcast</button>
+      </div>
+      <div id="pairActions" class="pair hidden">
+        <div class="pair-actions">
+          <button id="copyLinkBtn" class="btn-secondary" type="button">Copy Link</button>
+        </div>
+        <div class="pair-share">
+          <img id="pairQr" alt="Pair QR code" />
+          <div>
+            <div class="sub">Telefon kamerasiyla QR okutabilir veya linki direkt acabilirsiniz.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card media-card">
+      <div class="card-head">
+        <span>Live Preview</span>
+        <span class="chip">WebRTC</span>
+      </div>
+      <video id="preview" autoplay muted playsinline></video>
+      <div class="metrics">
+        <div class="metric"><div class="k">BITRATE</div><div id="mBitrate" class="v">-</div></div>
+        <div class="metric"><div class="k">FPS</div><div id="mFps" class="v">-</div></div>
+        <div class="metric"><div class="k">RTT</div><div id="mRtt" class="v">-</div></div>
+        <div class="metric"><div class="k">LOSS</div><div id="mLoss" class="v">-</div></div>
       </div>
     </section>
 
     <section class="card">
-      <video id="preview" autoplay muted playsinline></video>
-    </section>
-
-    <section class="card">
+      <h2 class="log-title">Session Log</h2>
       <div id="log" class="log"></div>
     </section>
   </div>
@@ -127,8 +382,24 @@
   <script>
     const logEl = document.getElementById("log");
     const statusEl = document.getElementById("status");
+    const startBtn = document.getElementById("start");
+    const pairActionsEl = document.getElementById("pairActions");
+    const pairQrEl = document.getElementById("pairQr");
+    const mBitrateEl = document.getElementById("mBitrate");
+    const mFpsEl = document.getElementById("mFps");
+    const mRttEl = document.getElementById("mRtt");
+    const mLossEl = document.getElementById("mLoss");
     const log = (...a) => { logEl.textContent += a.join(" ") + "\n"; logEl.scrollTop = logEl.scrollHeight; };
-    const setStatus = (s) => { statusEl.textContent = s; };
+    const setStatus = (s) => {
+      statusEl.textContent = s;
+      const v = String(s || "").toLowerCase();
+      let state = "idle";
+      if (v.includes("error")) state = "error";
+      else if (v.includes("connect") || v.includes("beklen")) state = "connecting";
+      else if (v.includes("broadcast") || v.includes("register") || v.includes("peer: connected")) state = "live";
+      statusEl.dataset.state = state;
+    };
+    setStatus(statusEl.textContent);
 
     let ws;
     let pc;
@@ -139,10 +410,82 @@
     let captureStream = null;
     let reconnectTimer = null;
     let reconnectAttempt = 0;
+    let agentReconnectTimer = null;
+    let agentReconnectAttempt = 0;
+    let agentWarningShown = false;
     let started = false;
     let wsConnId = 0;
     let restarting = false;
     let renegotiating = false;
+    let waitingForPeer = false;
+    let iceServers = [{ urls: "stun:stun.l.google.com:19302" }];
+    let statsTimer = null;
+    let lastStatsBytes = null;
+    let lastStatsTs = null;
+    let stoppedByPairExpired = false;
+    let preferredOrigin = location.origin;
+
+    function buildPairLink(codeValue, tokenValue) {
+      return `${preferredOrigin}/android.html?code=${encodeURIComponent(codeValue)}&token=${encodeURIComponent(tokenValue)}`;
+    }
+
+    function generateClientToken() {
+      const bytes = new Uint8Array(8);
+      crypto.getRandomValues(bytes);
+      return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("").toUpperCase();
+    }
+
+    async function copyText(value, label) {
+      try {
+        await navigator.clipboard.writeText(value);
+        log(`${label} copied.`);
+      } catch {
+        log(`${label} copy failed.`);
+      }
+    }
+
+    function renderPairing() {
+      pairActionsEl.classList.remove("hidden");
+      const link = buildPairLink(code, token);
+      pairQrEl.src = `https://quickchart.io/qr?margin=1&size=200&text=${encodeURIComponent(link)}`;
+    }
+
+    function clearPairing() {
+      pairActionsEl.classList.add("hidden");
+      pairQrEl.removeAttribute("src");
+      code = "";
+      token = "";
+    }
+
+    async function loadPairing() {
+      const res = await fetch("/api/pair", { cache: "no-store" });
+      if (!res.ok) throw new Error("Pairing fetch failed");
+      const pair = await res.json();
+      if (!/^\d{6}$/.test(pair.code)) {
+        throw new Error("Invalid pairing payload");
+      }
+      if (Array.isArray(pair.iceServers) && pair.iceServers.length) {
+        iceServers = pair.iceServers;
+      }
+      code = pair.code;
+      const publicBaseUrl = typeof pair.publicBaseUrl === "string" ? pair.publicBaseUrl.trim() : "";
+      if (publicBaseUrl) {
+        preferredOrigin = publicBaseUrl.replace(/\/+$/, "");
+        log("Public join URL active.");
+        return;
+      }
+      const host = location.hostname;
+      const isLocalHost = host === "localhost" || host === "127.0.0.1" || host === "::1";
+      const lanIp = (typeof pair.preferredIp === "string" && pair.preferredIp.trim())
+        ? pair.preferredIp.trim()
+        : (Array.isArray(pair.serverIps) && pair.serverIps.length ? pair.serverIps[0] : "");
+      if (isLocalHost && lanIp) {
+        preferredOrigin = `${location.protocol}//${lanIp}:${location.port}`;
+      } else {
+        preferredOrigin = location.origin;
+      }
+      log("Pair code ready.");
+    }
 
     function wsUrl() {
       const scheme = location.protocol === "https:" ? "wss" : "ws";
@@ -150,14 +493,20 @@
     }
 
     async function start() {
-      code = document.getElementById("code").value.trim();
-      token = document.getElementById("token").value.trim();
-      if (!/^\d{6}$/.test(code) || token.length < 4) return log("Invalid code/token.");
+      if (started) return;
+      startBtn.disabled = true;
+      clearPairing();
+      await ensureCaptureStream();
+      await loadPairing();
+      token = generateClientToken();
+      renderPairing();
       started = true;
+      waitingForPeer = true;
       reconnectAttempt = 0;
       connectAgent();
-      await ensureCaptureStream();
-      await recreatePeer();
+      setStatus("Baglanti bekleniyor...");
+      log("Paylasim secildi. Baglanti bekleniyor...");
+      log("Android baglandiginda yayin baslayacak.");
       connectSignaling();
     }
 
@@ -179,6 +528,13 @@
       }
     }
 
+    async function beginStreaming(reason) {
+      waitingForPeer = false;
+      await ensureCaptureStream();
+      await recreatePeer();
+      await sendFreshOffer(reason);
+    }
+
     function bindCaptureLifecycle(stream) {
       stream.getVideoTracks().forEach((track) => {
         track.onended = () => {
@@ -190,6 +546,7 @@
     }
 
     function cleanupPeer() {
+      stopStatsLoop();
       try {
         if (pc) {
           pc.onicecandidate = null;
@@ -203,7 +560,7 @@
 
     async function recreatePeer() {
       cleanupPeer();
-      pc = new RTCPeerConnection({ iceServers: [{ urls: "stun:stun.l.google.com:19302" }] });
+      pc = new RTCPeerConnection({ iceServers });
       pc.onicecandidate = (ev) => {
         if (!ev.candidate) return;
         sendWs({ type: "signal", token, target: "android", data: { candidate: ev.candidate } });
@@ -228,13 +585,19 @@
       inputChannel.onmessage = (ev) => {
         log("Input:", ev.data);
         if (agentWs && agentWs.readyState === WebSocket.OPEN) {
+          agentWarningShown = false;
           agentWs.send(ev.data);
+        } else if (!agentWarningShown) {
+          log("PC input agent disconnected. Run: npm run pc:agent");
+          agentWarningShown = true;
+          connectAgent();
         }
       };
       captureStream.getTracks().forEach((t) => pc.addTrack(t, captureStream));
       const senderKinds = pc.getSenders().map((s) => (s.track ? s.track.kind : "none")).join(",");
       log("Senders:", senderKinds || "none");
       setStatus("Broadcasting");
+      startStatsLoop();
     }
 
     async function sendFreshOffer(reason) {
@@ -255,6 +618,7 @@
     function connectSignaling() {
       const connId = ++wsConnId;
       setStatus("Connecting...");
+      stoppedByPairExpired = false;
       ws = new WebSocket(wsUrl());
       ws.onopen = async () => {
         if (connId !== wsConnId) return;
@@ -266,26 +630,44 @@
         const msg = JSON.parse(ev.data);
         if (msg.type === "registered") {
           reconnectAttempt = 0;
-          setStatus("Registered");
+          setStatus(msg.paired ? "Registered" : "Baglanti bekleniyor...");
           log(`Registered token=${msg.token || token}`);
           if (msg.paired) {
-            log("Peer already connected, resetting peer for clean ICE...");
-            await recreatePeer();
-            await sendFreshOffer("registered_paired");
+            log("Peer already connected. Starting broadcast...");
+            await beginStreaming("registered_paired");
+          } else {
+            waitingForPeer = true;
+            cleanupPeer();
           }
           return;
         }
         if (msg.type === "peer_connected") {
-          log("Android connected, resetting peer for clean ICE...");
-          await recreatePeer();
-          await sendFreshOffer("peer_connected");
+          log("Android connected. Starting broadcast...");
+          await beginStreaming("peer_connected");
           return;
         }
         if (msg.type === "peer_disconnected") {
           log("Android disconnected.");
+          waitingForPeer = true;
+          cleanupPeer();
+          setStatus("Baglanti bekleniyor...");
+          return;
+        }
+        if (msg.type === "pair_expired") {
+          stoppedByPairExpired = true;
+          started = false;
+          waitingForPeer = false;
+          cleanupPeer();
+          clearPairing();
+          setStatus("Pair expired");
+          startBtn.disabled = false;
+          log("Pair timeout. New code/token generated.");
+          try { if (ws) ws.close(); } catch {}
+          await loadPairing();
           return;
         }
         if (msg.type === "signal" && msg.data?.sdp) {
+          if (!pc) return;
           await pc.setRemoteDescription(new RTCSessionDescription(msg.data.sdp));
           if (msg.data.sdp.type === "offer") {
             const answer = await pc.createAnswer();
@@ -295,23 +677,102 @@
           return;
         }
         if (msg.type === "signal" && msg.data?.candidate) {
+          if (!pc) return;
           try { await pc.addIceCandidate(new RTCIceCandidate(msg.data.candidate)); } catch {}
           return;
         }
         if (msg.type === "error") {
           log("ERROR:", msg.message);
+          const m = String(msg.message || "").toLowerCase();
+          if (m.includes("invalid code") || m.includes("invalid token")) {
+            started = false;
+            waitingForPeer = false;
+            cleanupPeer();
+            clearPairing();
+            try { if (ws) ws.close(); } catch {}
+            startBtn.disabled = false;
+            setStatus("Oturum gecersiz, yeni QR hazirlaniyor...");
+            try {
+              await loadPairing();
+              log("Yeni pair code hazir. Start Broadcast ile devam edin.");
+            } catch (e) {
+              log("Pair refresh failed:", e.message);
+              setStatus("Error");
+            }
+            return;
+          }
           setStatus("Error");
         }
       };
       ws.onclose = () => {
         if (connId !== wsConnId) return;
         setStatus("Disconnected");
+        if (stoppedByPairExpired) return;
         scheduleReconnect("Signaling closed");
       };
       ws.onerror = () => {
         if (connId !== wsConnId) return;
+        if (stoppedByPairExpired) return;
         scheduleReconnect("Signaling error");
       };
+    }
+
+    function resetMetrics() {
+      mBitrateEl.textContent = "-";
+      mFpsEl.textContent = "-";
+      mRttEl.textContent = "-";
+      mLossEl.textContent = "-";
+    }
+
+    function stopStatsLoop() {
+      if (statsTimer) {
+        clearInterval(statsTimer);
+        statsTimer = null;
+      }
+      lastStatsBytes = null;
+      lastStatsTs = null;
+      resetMetrics();
+    }
+
+    function startStatsLoop() {
+      if (statsTimer) return;
+      statsTimer = setInterval(async () => {
+        if (!pc || pc.connectionState === "closed") return;
+        try {
+          const stats = await pc.getStats();
+          let outVideo = null;
+          let remoteInVideo = null;
+          let pair = null;
+          stats.forEach((r) => {
+            if (r.type === "outbound-rtp" && r.kind === "video" && !r.isRemote) outVideo = r;
+            if (r.type === "remote-inbound-rtp" && r.kind === "video") remoteInVideo = r;
+            if (r.type === "candidate-pair" && r.nominated && r.state === "succeeded") pair = r;
+          });
+
+          const now = Date.now();
+          if (outVideo && typeof outVideo.bytesSent === "number") {
+            if (lastStatsBytes != null && lastStatsTs != null) {
+              const dt = (now - lastStatsTs) / 1000;
+              if (dt > 0) {
+                const bps = ((outVideo.bytesSent - lastStatsBytes) * 8) / dt;
+                mBitrateEl.textContent = `${Math.max(0, bps / 1000).toFixed(0)} kbps`;
+              }
+            }
+            lastStatsBytes = outVideo.bytesSent;
+            lastStatsTs = now;
+            mFpsEl.textContent = Number.isFinite(outVideo.framesPerSecond) ? `${outVideo.framesPerSecond.toFixed(1)}` : "-";
+          }
+
+          const rtt = (pair && pair.currentRoundTripTime) || (remoteInVideo && remoteInVideo.roundTripTime);
+          mRttEl.textContent = Number.isFinite(rtt) ? `${Math.round(rtt * 1000)} ms` : "-";
+
+          if (remoteInVideo && Number.isFinite(remoteInVideo.packetsLost) && outVideo && Number.isFinite(outVideo.packetsSent)) {
+            const total = outVideo.packetsSent + remoteInVideo.packetsLost;
+            const lossPct = total > 0 ? (remoteInVideo.packetsLost / total) * 100 : 0;
+            mLossEl.textContent = `${lossPct.toFixed(1)}%`;
+          }
+        } catch {}
+      }, 2000);
     }
 
     function sendWs(payload) {
@@ -325,12 +786,13 @@
       if (reconnectTimer) return;
       reconnectAttempt += 1;
       const delay = Math.min(4000, 700 + reconnectAttempt * 300);
+      if (waitingForPeer) {
+        setStatus("Baglanti bekleniyor...");
+      }
       log(reason, `retry in ${delay}ms`);
       reconnectTimer = setTimeout(async () => {
         reconnectTimer = null;
         try {
-          await ensureCaptureStream();
-          await recreatePeer();
           connectSignaling();
         } catch (e) {
           scheduleReconnect("Reconnect failed: " + e.message);
@@ -344,12 +806,11 @@
       log(reason);
       setTimeout(async () => {
         try {
-          const old = ws;
-          ws = null;
-          try { if (old) old.close(); } catch {}
-          await ensureCaptureStream();
-          await recreatePeer();
-          connectSignaling();
+          if (!ws || ws.readyState !== WebSocket.OPEN) {
+            scheduleReconnect("Restart failed: signaling not open");
+            return;
+          }
+          await beginStreaming("capture_ended");
         } catch (e) {
           scheduleReconnect("Restart failed: " + e.message);
         } finally {
@@ -361,15 +822,45 @@
     document.getElementById("start").onclick = () => start().catch((e) => {
       log("Start failed:", e.message);
       setStatus("Error");
+      startBtn.disabled = false;
     });
+    document.getElementById("copyLinkBtn").onclick = () => copyText(buildPairLink(code, token), "Link");
 
     function connectAgent() {
+      if (agentWs && (agentWs.readyState === WebSocket.OPEN || agentWs.readyState === WebSocket.CONNECTING)) {
+        return;
+      }
+      if (agentReconnectTimer) {
+        clearTimeout(agentReconnectTimer);
+        agentReconnectTimer = null;
+      }
       try {
         agentWs = new WebSocket("ws://127.0.0.1:40123");
-        agentWs.onopen = () => log("PC input agent connected.");
-        agentWs.onerror = () => log("PC input agent not reachable. Run: npm run pc:agent");
+        agentWs.onopen = () => {
+          agentReconnectAttempt = 0;
+          agentWarningShown = false;
+          log("PC input agent connected.");
+        };
+        const scheduleAgentReconnect = () => {
+          if (!started) return;
+          if (agentReconnectTimer) return;
+          agentReconnectAttempt += 1;
+          const delay = Math.min(5000, 800 + agentReconnectAttempt * 300);
+          agentReconnectTimer = setTimeout(() => {
+            agentReconnectTimer = null;
+            connectAgent();
+          }, delay);
+        };
+        agentWs.onclose = scheduleAgentReconnect;
+        agentWs.onerror = scheduleAgentReconnect;
       } catch {
-        log("PC input agent connect failed.");
+        if (!started) return;
+        if (!agentReconnectTimer) {
+          agentReconnectTimer = setTimeout(() => {
+            agentReconnectTimer = null;
+            connectAgent();
+          }, 1200);
+        }
       }
     }
   </script>
