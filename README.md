@@ -1,5 +1,14 @@
 # GameRemoteServer
 
+![WebSocket](https://img.shields.io/badge/WebSocket-Protocol-1f2937?style=for-the-badge&logo=socketdotio&logoColor=white)
+![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
+![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
+![Android](https://img.shields.io/badge/Android-34A853?style=for-the-badge&logo=android&logoColor=white)
+![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
+![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Coturn](https://img.shields.io/badge/Coturn-TURN-0f172a?style=for-the-badge)
+
 Backend service for low-latency PC screen streaming to Android with remote input using WebRTC + WebSocket signaling.
 
 ## Architecture Overview
