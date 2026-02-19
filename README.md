@@ -1,208 +1,166 @@
-# GameRemoteServer (WebRTC Edition)
+# GameRemoteServer
 
-A WebRTC-based project for low-latency PC screen streaming to Android with remote control support.
+Backend service for low-latency PC screen streaming to Android with remote input using WebRTC + WebSocket signaling.
 
-## Table of Contents
+## Architecture Overview
 
-- Features
-- How It Works
-- Quick Start (Local)
-- Run on a Server (Same Wi-Fi Not Required)
-- Pairing
-- Performance Notes
-- Troubleshooting
-- Project Structure
-- Legacy Mode
+```text
+PC Browser (Broadcaster)          Android Web/App (Viewer)
+          |                                  |
+          |---- WebSocket Signaling (/ws) ---|
+          |                                  |
+          |===== WebRTC Media/Data Channel ===|
+                         |
+                         v
+                GameRemoteServer (Node.js)
+           - Static web client hosting
+           - Pair/session management
+           - Signaling relay and validation
+                         |
+                         v
+                Windows Input Agent
+           (mouse/keyboard injection on host)
+```
 
-## Features
+For internet access, deployment can include:
+- `nginx` for reverse proxy and TLS termination
+- `coturn` for TURN relay in restrictive NAT/mobile networks
+- optional Cloudflare tunnel profile
 
-- WebRTC screen streaming (low latency, high FPS target)
-- Android-side click, scroll, and text input
-- WebSocket signaling (`/ws`)
-- Local Windows input agent (`npm run pc:agent`)
-- Quick screenshot button on Android viewer (left side camera button)
+## Tech Stack
 
-## How It Works
+- Node.js (`http`, `ws`) for signaling + static asset delivery
+- Browser WebRTC APIs (`RTCPeerConnection`, data channels)
+- WebSocket signaling endpoint: `/ws`
+- HTML/CSS/JS clients in `web-client/`
+- Android native wrapper (WebView + QR flow) in `android-client/`
+- Docker + Docker Compose for local/prod orchestration
+- Nginx + Coturn for production-grade connectivity
 
-- `WebSocket`: used only for signaling and control messages
-- `WebRTC`: used for video/audio media transport
-- On PC, `getDisplayMedia(..., audio: true)` is used to capture system audio
+## How to Run
 
-Note: Enable `Share audio / System audio` in the browser screen-share dialog for audio capture.
+## Local Development
 
-## Quick Start (Local)
+1. Install dependencies:
 
 ```bash
 npm install
+```
+
+2. Start backend:
+
+```bash
 npm start
 ```
 
-Run the input agent on the Windows PC in a separate terminal:
+3. Start host input agent on the Windows game PC:
 
 ```bash
 npm run pc:agent
 ```
 
-Default pages:
-
+4. Open:
 - PC broadcaster: `http://localhost:37841/pc.html`
 - Android viewer: `http://localhost:37841/android.html`
 
-### One Command Run (Docker + Host Agent)
+## Docker (Local)
 
-`pc-input-agent` controls Windows mouse/keyboard, so it should run on host (not in container).
-You can still start/stop everything with one command:
+Start app stack:
+
+```bash
+docker compose -f docker-compose.yml up -d --build
+```
+
+Or use helper scripts:
 
 ```bash
 npm run up:all
-```
-
-Stop all:
-
-```bash
 npm run down:all
 ```
 
-Optional tunnel service (for quick public testing):
+## Production (Docker + Nginx + TURN)
 
-```bash
-docker compose -f docker-compose.yml --profile quick_tunnel up -d
-```
-
-### Stable Public Access (Named Tunnel + Optional TURN)
-
-1. Create `.env.named` from template:
-
-```bash
-cp .env.named.example .env.named
-```
-
-2. Fill:
-
-- `TUNNEL_TOKEN`
-- `PUBLIC_BASE_URL`
-- (recommended) TURN settings: `TURN_URL`, `TURN_USERNAME`, `TURN_PASSWORD`, `TURN_EXTERNAL_IP`, `TURN_REALM`
-
-3. Run:
-
-```bash
-# PowerShell
-Get-Content .env.named | ForEach-Object {
-  if ($_ -match '^\s*#' -or $_ -match '^\s*$') { return }
-  $k,$v = $_ -split '=',2
-  [Environment]::SetEnvironmentVariable($k,$v,'Process')
-}
-npm run up:named
-```
-
-4. Stop:
-
-```bash
-npm run down:named
-```
-
-## Run on a Server (Same Wi-Fi Not Required)
-
-You can run this project on a public VPS/cloud server:
-
-- Use `deploy/docker-compose.prod.yml` with:
-  - `app` (Node signaling/static server)
-  - `nginx` (reverse proxy)
-  - `coturn` (TURN server for NAT traversal)
-- Open port `80` (+ TURN ports `3478`, `5349`, `49160-49200/udp`)
-- Keep the input agent running on the Windows PC where the game is running
-
-### Production Quick Start (Docker)
-
-1. Copy env template:
+1. Create env:
 
 ```bash
 cd deploy
 cp .env.prod.example .env.prod
 ```
 
-2. Edit `.env.prod`:
+2. Fill `.env.prod` (domain + TURN values).
 
-- `DOMAIN`
-- `PUBLIC_BASE_URL` (mobile/cellular users must open this public URL)
-- `TURN_EXTERNAL_IP`
-- `TURN_REALM`
-- `TURN_USERNAME`
-- `TURN_PASSWORD`
-
-3. Start stack:
+3. Run:
 
 ```bash
 docker compose --env-file .env.prod -f docker-compose.prod.yml up -d --build
 ```
 
-4. Open:
+4. Access:
+- `https://<DOMAIN>/pc.html`
+- `https://<DOMAIN>/android.html`
 
-- PC broadcaster: `https://<DOMAIN>/pc.html`
-- Android viewer: `https://<DOMAIN>/android.html`
+## Sample API Calls
 
-Notes:
+## 1) Get active pair metadata
 
-- `webrtc-server.js` reads ICE config from env and exposes it via `/api/pair` (`iceServers`).
-- Browser clients use runtime `iceServers` from server response.
-- For advanced ICE setup you can provide `ICE_SERVERS_JSON` as an env var (JSON array).
-- `deploy/nginx.conf` handles WebSocket upgrade for `/ws`.
-
-## Pairing
-
-Pairing credentials are generated server-side and shown on `pc.html`:
-
-- `code`: 6-digit pairing code
-- `token`: shared secret
-
-Use the same `code + token` on both PC and Android clients.
-
-Security behavior:
-
-- Token/code rotate after first successful pairing
-- Pair expires if Android does not connect within timeout (`PAIR_WAIT_TIMEOUT_MS`)
-
-## Performance Notes
-
-Actual FPS depends on:
-
-- Hardware encoder availability
-- Network quality/latency
-- Browser and device limits
-- Shared screen resolution
-
-For better results:
-
-- Use Chrome/Edge on PC
-- Share a single window/monitor when possible
-- Reduce unnecessary background load
-
-## Troubleshooting
-
-- No audio:
-  - Check if `Share audio / System audio` is enabled in screen share
-  - Use a browser/share mode that supports audio capture
-- Connection issues:
-  - Verify `code/token` values are identical on both sides
-  - Verify server reachability and open port (`37841`)
-- Input not working:
-  - Make sure `npm run pc:agent` is running on the PC
-
-## Project Structure
-
-- `webrtc-server.js`: signaling + static web server
-- `web-client/pc.html`: PC broadcaster page
-- `web-client/android.html`: Android viewer page
-- `scripts/pc-input-agent.js`: Windows input bridge
-- `deploy/docker-compose.prod.yml`: production stack
-- `deploy/nginx.conf`: reverse proxy config
-- `deploy/.env.prod.example`: production env template
-- `server.js`: legacy relay server
-
-## Legacy Mode
-
-To run the legacy websocket relay mode:
+Returns active code, ICE config, and server reachability hints.
 
 ```bash
-npm run start:legacy
+curl -s http://localhost:37841/api/pair
 ```
+
+Example response:
+
+```json
+{
+  "code": "395575",
+  "waitTimeoutMs": 180000,
+  "serverIps": ["192.168.1.3"],
+  "preferredIp": "192.168.1.3",
+  "publicBaseUrl": "https://example.com",
+  "iceServers": [{"urls":"stun:stun.l.google.com:19302"}]
+}
+```
+
+## 2) WebSocket signaling registration
+
+Connect to:
+
+```text
+ws://localhost:37841/ws
+```
+
+Register as PC:
+
+```json
+{"type":"register","role":"pc","code":"395575","token":"5E3B9F15AABBCCDD"}
+```
+
+Forward SDP/ICE:
+
+```json
+{
+  "type":"signal",
+  "token":"5E3B9F15AABBCCDD",
+  "target":"android",
+  "data":{"sdp":{"type":"offer","sdp":"..."}}
+}
+```
+
+## Design Decisions
+
+- WebSocket is used only for signaling/control, while media flows via WebRTC for lower latency.
+- Pair sessions are short-lived with timeout and rotation to reduce stale-session hijacking risk.
+- Pair `token` is generated on the PC client side and not exposed via `/api/pair`.
+- Server validates role/code/token/target on every signaling action.
+- Input injection is separated into a host-only agent for least privilege in server containers.
+- Runtime ICE config (`STUN_URLS`, `TURN_*`, `ICE_SERVERS_JSON`) keeps deployment flexible.
+
+## Future Improvements
+
+- Add authenticated PC session ownership (admin secret or signed claims) for stronger pairing control.
+- Add rate limiting and abuse protection for `/ws` and `/api/pair`.
+- Add structured metrics endpoint (Prometheus) for bitrate/RTT/session counts.
+- Add integration tests for reconnect, pair-expiry, and token-rotation flows.
+- Add CI pipeline for lint/build/test and container scanning.
+- Add multi-viewer or observer mode with role-based permissions.
