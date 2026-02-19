@@ -11,6 +11,24 @@
 
 Backend service for low-latency PC screen streaming to Android with remote input using WebRTC + WebSocket signaling.
 
+## Screenshots
+
+### 1) PC Broadcaster (Idle)
+
+![PC Broadcaster Idle](docs/images/01-pc-broadcaster-idle.png)
+
+### 2) PC Broadcaster (Pair Ready)
+
+![PC Broadcaster Pair Ready](docs/images/02-pc-broadcaster-pair.png)
+
+### 3) Android (Connect Flow)
+
+![Android Connect Flow](docs/images/03-android-connect.png)
+
+### 4) Android (Live Viewer)
+
+![Android Live Viewer](docs/images/04-android-live.png)
+
 ## Architecture Overview
 
 ```text
