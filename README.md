@@ -1,13 +1,15 @@
 # GameRemoteServer
 
-![WebSocket](https://img.shields.io/badge/WebSocket-Protocol-1f2937?style=for-the-badge&logo=socketdotio&logoColor=white)
-![HTML5](https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white)
-![CSS3](https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white)
-![Android](https://img.shields.io/badge/Android-34A853?style=for-the-badge&logo=android&logoColor=white)
-![Java](https://img.shields.io/badge/Java-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)
-![Nginx](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
-![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
-![Coturn](https://img.shields.io/badge/Coturn-TURN-0f172a?style=for-the-badge)
+<p align="left">
+  <a href="https://developer.mozilla.org/docs/Web/API/WebSockets_API" title="WebSocket"><img src="https://cdn.simpleicons.org/websocket" width="40" height="40" alt="WebSocket"/></a>
+  <a href="https://developer.mozilla.org/docs/Web/HTML" title="HTML5"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/html5/html5-original.svg" width="40" height="40" alt="HTML5"/></a>
+  <a href="https://developer.mozilla.org/docs/Web/CSS" title="CSS3"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/css3/css3-original.svg" width="40" height="40" alt="CSS3"/></a>
+  <a href="https://www.android.com/" title="Android"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg" width="40" height="40" alt="Android"/></a>
+  <a href="https://www.java.com/" title="Java"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="40" height="40" alt="Java"/></a>
+  <a href="https://nginx.org/" title="Nginx"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nginx/nginx-original.svg" width="40" height="40" alt="Nginx"/></a>
+  <a href="https://www.docker.com/" title="Docker"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg" width="40" height="40" alt="Docker"/></a>
+  <a href="https://github.com/coturn/coturn" title="Coturn"><img src="https://cdn.simpleicons.org/coturn" width="40" height="40" alt="Coturn"/></a>
+</p>
 
 Backend service for low-latency PC screen streaming to Android with remote input using WebRTC + WebSocket signaling.
 
