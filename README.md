@@ -1,17 +1,15 @@
 # GameRemoteServer
 
 <p align="left">
-  <a href="https://developer.mozilla.org/docs/Web/API/WebSockets_API" title="WebSocket"><img src="https://cdn.simpleicons.org/websocket" width="40" height="40" alt="WebSocket"/></a>
   <a href="https://developer.mozilla.org/docs/Web/HTML" title="HTML5"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/html5/html5-original.svg" width="40" height="40" alt="HTML5"/></a>
   <a href="https://developer.mozilla.org/docs/Web/CSS" title="CSS3"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/css3/css3-original.svg" width="40" height="40" alt="CSS3"/></a>
   <a href="https://www.android.com/" title="Android"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/android/android-original.svg" width="40" height="40" alt="Android"/></a>
   <a href="https://www.java.com/" title="Java"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/java/java-original.svg" width="40" height="40" alt="Java"/></a>
   <a href="https://nginx.org/" title="Nginx"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/nginx/nginx-original.svg" width="40" height="40" alt="Nginx"/></a>
   <a href="https://www.docker.com/" title="Docker"><img src="https://cdn.jsdelivr.net/gh/devicons/devicon/icons/docker/docker-original.svg" width="40" height="40" alt="Docker"/></a>
-  <a href="https://github.com/coturn/coturn" title="Coturn"><img src="https://cdn.simpleicons.org/coturn" width="40" height="40" alt="Coturn"/></a>
 </p>
 
-Backend service for low-latency PC screen streaming to Android with remote input using WebRTC + WebSocket signaling.
+Backend service for low-latency PC screen streaming to Android with remote input using WebRTC signaling.
 
 ## Screenshots
 
@@ -36,7 +34,7 @@ Backend service for low-latency PC screen streaming to Android with remote input
 ```text
 PC Browser (Broadcaster)          Android Web/App (Viewer)
           |                                  |
-          |---- WebSocket Signaling (/ws) ---|
+          |========== Signaling =============|
           |                                  |
           |===== WebRTC Media/Data Channel ===|
                          |
@@ -53,18 +51,16 @@ PC Browser (Broadcaster)          Android Web/App (Viewer)
 
 For internet access, deployment can include:
 - `nginx` for reverse proxy and TLS termination
-- `coturn` for TURN relay in restrictive NAT/mobile networks
 - optional Cloudflare tunnel profile
 
 ## Tech Stack
 
 - Node.js (`http`, `ws`) for signaling + static asset delivery
 - Browser WebRTC APIs (`RTCPeerConnection`, data channels)
-- WebSocket signaling endpoint: `/ws`
 - HTML/CSS/JS clients in `web-client/`
 - Android native wrapper (WebView + QR flow) in `android-client/`
 - Docker + Docker Compose for local/prod orchestration
-- Nginx + Coturn for production-grade connectivity
+- Nginx for production-grade connectivity
 
 ## How to Run
 
@@ -151,34 +147,9 @@ Example response:
 }
 ```
 
-## 2) WebSocket signaling registration
-
-Connect to:
-
-```text
-ws://localhost:37841/ws
-```
-
-Register as PC:
-
-```json
-{"type":"register","role":"pc","code":"395575","token":"5E3B9F15AABBCCDD"}
-```
-
-Forward SDP/ICE:
-
-```json
-{
-  "type":"signal",
-  "token":"5E3B9F15AABBCCDD",
-  "target":"android",
-  "data":{"sdp":{"type":"offer","sdp":"..."}}
-}
-```
-
 ## Design Decisions
 
-- WebSocket is used only for signaling/control, while media flows via WebRTC for lower latency.
+- Signaling/control is isolated from media transport, while media flows via WebRTC for lower latency.
 - Pair sessions are short-lived with timeout and rotation to reduce stale-session hijacking risk.
 - Pair `token` is generated on the PC client side and not exposed via `/api/pair`.
 - Server validates role/code/token/target on every signaling action.
@@ -188,7 +159,7 @@ Forward SDP/ICE:
 ## Future Improvements
 
 - Add authenticated PC session ownership (admin secret or signed claims) for stronger pairing control.
-- Add rate limiting and abuse protection for `/ws` and `/api/pair`.
+- Add rate limiting and abuse protection for signaling endpoints and `/api/pair`.
 - Add structured metrics endpoint (Prometheus) for bitrate/RTT/session counts.
 - Add integration tests for reconnect, pair-expiry, and token-rotation flows.
 - Add CI pipeline for lint/build/test and container scanning.
